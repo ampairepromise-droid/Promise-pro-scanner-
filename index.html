@@ -1,0 +1,2344 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PROMISE PRO SCANNER — Real-Market Day-Trading Engine</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              dark: '#0B0E14',
+              card: '#151922',
+              cardBorder: '#232936',
+              accent: '#3B82F6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+  <style>
+    body {
+      background-color: #080A0F;
+      color: #E2E8F0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #0B0E14; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #232936; border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #374151; }
+    .chip { cursor: pointer; user-select: none; }
+    .chip.active { background: rgba(16,185,129,0.2); color: #34d399; border-color: rgba(16,185,129,0.4); }
+    #detailModal { backdrop-filter: blur(2px); }
+    @keyframes shakeX { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-8px); } 40%, 60% { transform: translateX(8px); } }
+    .shake-anim { animation: shakeX 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between custom-scrollbar selection:bg-emerald-500 selection:text-black" style="overflow: hidden;">
+
+  <!-- PASSWORD LOCK SCREEN -->
+  <div id="lockScreen" class="fixed inset-0 z-[200] bg-[#050709] flex items-center justify-center p-6">
+    <div id="lockCard" class="w-full max-w-sm bg-[#0F131C] border border-gray-800 rounded-2xl p-8 shadow-2xl text-center">
+      <div class="w-14 h-14 mx-auto rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-2xl mb-4">
+        <i class="fa-solid fa-lock"></i>
+      </div>
+      <h2 class="text-white font-bold text-lg mb-1">PROMISE PRO SCANNER</h2>
+      <p class="text-gray-500 text-xs mb-6">Enter password to continue</p>
+      <div class="relative mb-3">
+        <input id="lockPasswordInput" type="password" placeholder="Password" autocomplete="off"
+          class="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-emerald-500 pr-10" />
+        <button type="button" onclick="toggleLockPasswordVisibility()" id="lockToggleBtn"
+          class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
+          <i class="fa-solid fa-eye text-xs"></i>
+        </button>
+      </div>
+      <p id="lockError" class="hidden text-rose-400 text-xs mb-3">Incorrect password. Try again.</p>
+      <button onclick="submitLockPassword()" class="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-sm py-2.5 rounded-lg transition-all">
+        UNLOCK
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const SITE_PASSWORD = 'Promise2024';
+    function submitLockPassword() {
+      const input = document.getElementById('lockPasswordInput');
+      const errorMsg = document.getElementById('lockError');
+      const card = document.getElementById('lockCard');
+      if (input.value === SITE_PASSWORD) {
+        document.getElementById('lockScreen').remove();
+        document.body.style.overflow = '';
+      } else {
+        errorMsg.classList.remove('hidden');
+        card.classList.remove('shake-anim');
+        void card.offsetWidth;
+        card.classList.add('shake-anim');
+        input.value = '';
+        input.focus();
+      }
+    }
+    function toggleLockPasswordVisibility() {
+      const input = document.getElementById('lockPasswordInput');
+      const icon = document.querySelector('#lockToggleBtn i');
+      if (input.type === 'password') { input.type = 'text'; icon.className = 'fa-solid fa-eye-slash text-xs'; }
+      else { input.type = 'password'; icon.className = 'fa-solid fa-eye text-xs'; }
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const input = document.getElementById('lockPasswordInput');
+      if (!input) return;
+      input.focus();
+      input.addEventListener('keydown', function(e) { if (e.key === 'Enter') submitLockPassword(); });
+    });
+  </script>
+
+  <!-- TOP APP HEADER -->
+  <header class="border-b border-gray-800 bg-[#0C0F17]/90 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center space-x-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-lg shadow-lg shadow-emerald-500/10">
+          <i class="fa-solid me-1 fa-bolt text-emerald-400"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-wide text-white flex items-center gap-2">
+            PROMISE PRO <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">Binance USDT-M Live</span>
+          </h1>
+          <p class="text-xs text-gray-400">Deterministic Top-Down ICT/SMC Structural Market Engine — Live Validation & Invalidation</p>
+        </div>
+      </div>
+
+      <!-- SCANNER CONTROL CENTER -->
+      <div class="flex items-center gap-3">
+        <div id="connectionStatus" class="hidden sm:flex items-center gap-2 text-xs px-3 py-1.5 rounded-md bg-gray-800/80 border border-gray-700 text-gray-300">
+          <span id="connDot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="connText">Binance Futures API Connected</span>
+        </div>
+
+        <button id="scanBtn" onclick="runMarketScan()" class="px-5 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 text-black font-bold text-sm tracking-wide shadow-lg shadow-emerald-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+          <i class="fa-solid fa-crosshairs text-base"></i>
+          <span>SCAN MARKET</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="max-w-7xl mx-auto px-4 py-6 w-full flex-1 flex flex-col gap-6">
+
+    <!-- METRICS & STATUS PANEL -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4 flex flex-col">
+        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Eligible Pairs (≥ $2M)</span>
+        <span id="eligibleCount" class="text-2xl font-bold text-white mt-1">--</span>
+        <span class="text-[11px] text-gray-500 mt-1">Binance USDT Perpetual</span>
+      </div>
+
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4 flex flex-col">
+        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Scan Progress</span>
+        <span id="scanProgress" class="text-2xl font-bold text-emerald-400 mt-1">0 / 0</span>
+        <span id="scanStatusSub" class="text-[11px] text-gray-500 mt-1">Idle</span>
+      </div>
+
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4 flex flex-col">
+        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Active Signals</span>
+        <span id="qualifiedCount" class="text-2xl font-bold text-white mt-1">0</span>
+        <span id="qualifiedSub" class="text-[11px] text-gray-500 mt-1">Enter / Wait / Invalid</span>
+      </div>
+
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4 flex flex-col">
+        <span class="text-xs text-gray-400 font-medium uppercase tracking-wider">Chart Engine Mode</span>
+        <span class="text-2xl font-bold text-teal-400 mt-1 flex items-center gap-1.5">
+          <i class="fa-solid fa-chart-candlestick text-lg"></i> TradingView HD
+        </span>
+        <span class="text-[11px] text-gray-500 mt-1">Optimized Multi-TF Data & Zoom</span>
+      </div>
+    </div>
+
+    <!-- MARKET REGIME + SCAN HEALTH ROW -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4">
+        <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-globe text-blue-400"></i> Market Regime (BTC-Led)
+        </h3>
+        <div class="grid grid-cols-2 gap-3 text-xs" id="regimePanel">
+          <div><span class="text-gray-500">BTC 4H:</span> <span id="regime4h" class="font-mono font-semibold text-gray-300">—</span></div>
+          <div><span class="text-gray-500">BTC 1H:</span> <span id="regime1h" class="font-mono font-semibold text-gray-300">—</span></div>
+          <div><span class="text-gray-500">Volatility:</span> <span id="regimeVol" class="font-mono font-semibold text-gray-300">—</span></div>
+          <div><span class="text-gray-500">Altcoin Env:</span> <span id="regimeAlt" class="font-mono font-semibold text-gray-300">—</span></div>
+        </div>
+        <p id="regimeUpdated" class="text-[10px] text-gray-600 mt-2">Not yet evaluated</p>
+      </div>
+
+      <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4">
+        <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-heart-pulse text-rose-400"></i> Scan Health Monitor
+        </h3>
+        <div class="grid grid-cols-2 gap-2 text-xs" id="healthPanel">
+          <div><span class="text-gray-500">Binance API:</span> <span id="healthApi" class="font-mono font-semibold text-emerald-400">🟢 Connected</span></div>
+          <div><span class="text-gray-500">API Errors:</span> <span id="healthErrors" class="font-mono font-semibold text-gray-300">0</span></div>
+          <div><span class="text-gray-500">4H Data:</span> <span id="health4h" class="font-mono text-gray-500">—</span></div>
+          <div><span class="text-gray-500">1H Data:</span> <span id="health1h" class="font-mono text-gray-500">—</span></div>
+          <div><span class="text-gray-500">15M Data:</span> <span id="health15m" class="font-mono text-gray-500">—</span></div>
+          <div><span class="text-gray-500">5M Data:</span> <span id="health5m" class="font-mono text-gray-500">—</span></div>
+          <div><span class="text-gray-500">Symbols Scanned:</span> <span id="healthScanned" class="font-mono text-gray-300">--</span></div>
+          <div><span class="text-gray-500">Last Success:</span> <span id="healthLastScan" class="font-mono text-gray-300">Never</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BACKGROUND ENGINE: BROADER MARKET REGIME, SESSION, ADAPTIVE INSIGHTS -->
+    <!-- This data comes from the persistent background worker (/api/insights),
+         not the live in-browser scanner above — it reflects the same BTC+ETH+
+         altcoin-breadth regime and real ENTER-trade history used to gate
+         Android push notifications, so the two are always the same source of truth. -->
+    <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-2">
+          <i class="fa-solid fa-satellite-dish text-purple-400"></i> Background Engine — Broader Market Context
+        </h3>
+        <span id="sessionBadge" class="text-xs font-mono text-gray-400">—</span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div class="bg-black/20 rounded-lg p-3">
+          <div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">Alt Market Regime</div>
+          <div id="altRegimeLabel" class="text-sm font-bold text-gray-300">Not yet evaluated</div>
+          <div id="altRegimeDetail" class="text-[11px] text-gray-500 mt-1"></div>
+          <div id="altRegimeTransitioning" class="hidden text-[11px] text-amber-400 mt-1">⚠️ Transitioning — confirming over next scan(s), not yet acted on</div>
+        </div>
+        <div class="bg-black/20 rounded-lg p-3">
+          <div class="text-[10px] text-gray-500 uppercase tracking-wide mb-1">🧠 Adaptive Insights</div>
+          <div id="adaptiveStage" class="text-sm font-bold text-gray-300">—</div>
+          <div id="adaptiveDetail" class="text-[11px] text-gray-500 mt-1 space-y-0.5"></div>
+        </div>
+      </div>
+
+      <details class="mt-3">
+        <summary class="text-[11px] text-gray-500 cursor-pointer hover:text-gray-400">Why no trade? (last background scan funnel)</summary>
+        <div id="whyNoTradeFunnel" class="text-[11px] text-gray-500 mt-2 font-mono leading-relaxed">Not yet run.</div>
+      </details>
+      <p class="text-[10px] text-gray-600 mt-2">All figures above are real — from stored scan/trade history. Regime changes require two consecutive confirming scans before display updates (avoids reacting to a single candle). Adaptive weights only begin adjusting past 50 resolved trades and are capped/versioned with automatic rollback.</p>
+    </div>
+
+    <!-- ENTRY ALERTS (WEB PUSH) -->
+    <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+            <i class="fa-solid fa-bell text-emerald-400"></i> Entry Alerts
+          </h3>
+          <p id="alertStatusText" class="text-xs text-gray-500">🔕 Entry Alerts: OFF — get an Android notification the moment a real setup reaches ENTER</p>
+          <p id="alertLastNotif" class="hidden text-[11px] text-gray-600 mt-1"></p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="testAlertBtn" onclick="sendTestNotification()" class="hidden px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs text-gray-300">
+            🧪 Test Notification
+          </button>
+          <button id="enableAlertsBtn" onclick="enableEntryAlerts()" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs">
+            🔔 ENABLE ENTRY ALERTS
+          </button>
+        </div>
+      </div>
+      <p id="alertDeniedHelp" class="hidden text-[11px] text-rose-400 mt-2">
+        🔴 Notification permission was denied. To re-enable, open your Android browser's site settings for this page and allow Notifications, then reload.
+      </p>
+      <p class="text-[10px] text-gray-600 mt-2">Background alerts currently monitor the top ~50 pairs by 24h volume, independent of this page being open. The live scanner above still covers the full market whenever this page is open.</p>
+    </div>
+
+    <!-- NOTIFICATION DEEP-LINK BANNER (shown when arriving from a tapped push notification) -->
+    <div id="notifSignalBanner" class="hidden bg-[#131722] border border-blue-900/40 rounded-xl p-4 text-sm"></div>
+
+    <!-- CORRELATION / EXPOSURE WARNING -->
+    <div id="correlationWarning" class="hidden bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 text-sm text-amber-300 flex items-start gap-3">
+      <i class="fa-solid fa-triangle-exclamation mt-0.5"></i>
+      <div id="correlationWarningText"></div>
+    </div>
+
+    <!-- SCANNER PROGRESS MODAL / BANNER -->
+    <div id="progressContainer" class="hidden bg-[#131722] border border-emerald-500/30 rounded-xl p-5 shadow-2xl relative overflow-hidden">
+      <div class="absolute top-0 left-0 bottom-0 bg-emerald-500/5 transition-all duration-300" id="progressBarFill" style="width: 0%"></div>
+      <div class="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="space-y-1">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></div>
+            <h3 id="scanTitle" class="font-bold text-white text-base">SCANNING REAL BINANCE MARKET</h3>
+          </div>
+          <p id="scanDetailLog" class="text-xs text-emerald-400 font-mono">Fetching exchange symbols & 24h volume stats...</p>
+        </div>
+
+        <div class="w-full md:w-64 bg-gray-900 border border-gray-800 rounded-full h-3 overflow-hidden p-0.5">
+          <div id="progressBar" class="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTER BAR -->
+    <div id="filterBar" class="hidden bg-[#131722] border border-gray-800/80 rounded-xl p-3 flex flex-wrap items-center gap-2">
+      <button data-f="state" data-v="ALL" onclick="setFilter('state','ALL')" class="chip active px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">All States</button>
+      <button data-f="state" data-v="ENTER" onclick="setFilter('state','ENTER')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">🟢 Enter</button>
+      <button data-f="state" data-v="WAIT" onclick="setFilter('state','WAIT')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">🟡 Wait</button>
+      <button data-f="state" data-v="INVALID" onclick="setFilter('state','INVALID')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">🔴 Invalid</button>
+      <span class="w-px h-5 bg-gray-800 mx-1"></span>
+      <button data-f="direction" data-v="ALL" onclick="setFilter('direction','ALL')" class="chip active px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">Long+Short</button>
+      <button data-f="direction" data-v="LONG" onclick="setFilter('direction','LONG')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">Long</button>
+      <button data-f="direction" data-v="SHORT" onclick="setFilter('direction','SHORT')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">Short</button>
+      <span class="w-px h-5 bg-gray-800 mx-1"></span>
+      <button data-f="grade" data-v="ALL" onclick="setFilter('grade','ALL')" class="chip active px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">All Grades</button>
+      <button data-f="grade" data-v="A+" onclick="setFilter('grade','A+')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">A+</button>
+      <button data-f="grade" data-v="A" onclick="setFilter('grade','A')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">A</button>
+      <button data-f="grade" data-v="B+" onclick="setFilter('grade','B+')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">B+</button>
+      <span class="w-px h-5 bg-gray-800 mx-1"></span>
+      <button data-f="fresh" data-v="ALL" onclick="setFilter('fresh','ALL')" class="chip active px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">All Ages</button>
+      <button data-f="fresh" data-v="FRESH" onclick="setFilter('fresh','FRESH')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">🟢 Fresh</button>
+      <span class="w-px h-5 bg-gray-800 mx-1"></span>
+      <button data-f="highRR" data-v="toggle" onclick="toggleFilter('highRR')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">High R:R (≥4)</button>
+      <button data-f="highVol" data-v="toggle" onclick="toggleFilter('highVol')" class="chip px-2.5 py-1 rounded-md border border-gray-700 text-xs text-gray-300">High Volume (≥$20M)</button>
+    </div>
+
+    <!-- RESULTS SECTION -->
+    <div class="flex-1 flex flex-col gap-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-list-check text-emerald-400"></i>
+          RANKED QUALIFIED SIGNALS
+        </h2>
+        <span id="lastScanTime" class="text-xs text-gray-500">Last scan: Never</span>
+      </div>
+
+      <!-- NO SIGNALS STATE -->
+      <div id="emptyState" class="bg-[#131722] border border-gray-800/80 rounded-2xl p-12 text-center flex flex-col items-center justify-center min-h-[380px]">
+        <div class="w-16 h-16 rounded-full bg-gray-800/80 flex items-center justify-center text-gray-500 text-2xl mb-4 border border-gray-700">
+          <i class="fa-solid fa-magnifying-glass-chart"></i>
+        </div>
+        <h3 id="emptyStateTitle" class="text-lg font-bold text-white mb-2">READY TO SCAN</h3>
+        <p id="emptyStateDesc" class="text-sm text-gray-400 max-w-md mx-auto mb-6">
+          Tap <strong class="text-white">SCAN MARKET</strong> to fetch live Binance USDT-M Perpetual tickers, evaluate 4H/1H/15M/5M market structure, liquidity sweeps, automated trend lines, and generate deterministic setup signals.
+        </p>
+        <div id="diagnosticsBox" class="hidden w-full max-w-md mx-auto text-left bg-[#0B0E14] border border-gray-800 rounded-xl p-4 mb-4 text-xs font-mono text-gray-400 space-y-1"></div>
+        <button onclick="runMarketScan()" class="px-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-sm tracking-wide transition-all">
+          RUN MARKET SCAN NOW
+        </button>
+      </div>
+
+      <!-- SIGNALS CARDS GRID -->
+      <div id="signalsList" class="hidden flex flex-col gap-6"></div>
+    </div>
+
+    <!-- SIGNAL HISTORY / PERFORMANCE -->
+    <div class="bg-[#131722] border border-gray-800/80 rounded-2xl p-5 flex flex-col gap-4">
+      <div class="flex items-center justify-between flex-wrap gap-2">
+        <h2 class="text-base font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-clock-rotate-left text-emerald-400"></i>
+          SIGNAL HISTORY & PERFORMANCE
+        </h2>
+        <button onclick="resetHistory()" class="text-xs text-gray-500 hover:text-rose-400 transition-colors">
+          <i class="fa-solid fa-trash-can"></i> Clear History
+        </button>
+      </div>
+      <div id="statsPanel" class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs"></div>
+      <div id="historyTableWrap" class="overflow-x-auto max-h-64 custom-scrollbar">
+        <table class="w-full text-xs">
+          <thead class="text-gray-500 border-b border-gray-800">
+            <tr>
+              <th class="text-left py-2 pr-3">Symbol</th>
+              <th class="text-left py-2 pr-3">Dir</th>
+              <th class="text-left py-2 pr-3">Score</th>
+              <th class="text-left py-2 pr-3">Outcome</th>
+              <th class="text-left py-2 pr-3">R Multiple</th>
+              <th class="text-left py-2 pr-3">Closed</th>
+            </tr>
+          </thead>
+          <tbody id="historyTableBody"></tbody>
+        </table>
+      </div>
+      <p id="historyEmptyNote" class="text-xs text-gray-500">No recorded signal outcomes yet. Statistics populate as active signals resolve to TP1, TP2, Stop Loss, Invalidation, or Expiry — nothing here is simulated.</p>
+    </div>
+
+  </main>
+
+  <!-- SIGNAL DETAIL MODAL -->
+  <div id="detailModal" class="hidden fixed inset-0 z-[100] bg-black/70 flex items-center justify-center p-4">
+    <div class="bg-[#131722] border border-gray-800 rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto custom-scrollbar p-6" id="detailModalContent"></div>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-800/80 bg-[#0C0F17] py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between text-xs text-gray-500 gap-2">
+      <div>PROMISE PRO SCANNER v6.0 — Institutional SMC / ICT Execution, Live Validation & Performance Engine</div>
+      <div class="flex items-center gap-4">
+        <span>Binance Public API (v1)</span>
+        <span>•</span>
+        <span>Deterministic Rule Engine</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- SCANNER JAVASCRIPT LOGIC -->
+  <script>
+    /**
+     * PROMISE PRO SCANNER ENGINE v6.0
+     * Strictly Deterministic - Pure Binance Futures REST API Data
+     * Core multi-timeframe strategy (4H/1H/15M/5M) is preserved unmodified from v5.1.
+     * v6.0 adds: freshness + invalidation engine, dual structural/entry scoring,
+     * ENTER/WAIT/INVALID states, explainable "why" reasoning, scan diagnostics,
+     * BTC market regime filter, real correlation-based exposure detection,
+     * R:R feasibility checks, a signal detail panel, a scan health monitor,
+     * and a real (non-fabricated) signal history & performance tracker.
+     */
+
+    // ============ CONFIG ============
+    const MIN_24H_VOLUME_USD = 2000000;
+    const BATCH_SIZE = 5;
+    const MONITOR_INTERVAL_MS = 60000;   // full network re-check of active signals
+    const TICK_INTERVAL_MS = 15000;      // cheap UI-only freshness re-render
+    const EXPIRE_AFTER_MS = 30 * 60 * 1000; // 30 minutes
+    const HISTORY_KEY = 'ppsHistoryV1';
+    const MIN_TRADES_FOR_WINRATE = 10;
+    const STALE_REMOVE_MS = 15 * 60 * 1000; // remove non-active cards 15 min after closing
+
+    // Public VAPID key — safe to expose in the browser. The matching PRIVATE key lives only
+    // in the backend's environment variables and is never sent to the client.
+    const VAPID_PUBLIC_KEY = 'BDfUS4BCIqBOyG-yh2FGL9uEn62nXwBp5q1WCGAaE4v10m5jCsHW6rdyDsR3u31iAUormx3-y8Sw8Vjz7DNeCDM';
+
+    // COLOR CONSTANTS (TradingView Dark Theme Pro)
+    const COLORS = {
+      BULLISH: '#26a69a', BULLISH_BORDER: '#26a69a', BULLISH_WICK: '#26a69a',
+      BEARISH: '#ef5350', BEARISH_BORDER: '#ef5350', BEARISH_WICK: '#ef5350',
+      GRID: 'rgba(255,255,255,0.03)', AXIS_LINE: 'rgba(255,255,255,0.08)',
+      TEXT: 'rgba(255,255,255,0.45)',
+      VOL_BULL: 'rgba(38, 166, 154, 0.22)', VOL_BEAR: 'rgba(239, 83, 80, 0.22)',
+      OB_BULL: 'rgba(59, 130, 246, 0.14)', OB_BEAR: 'rgba(249, 115, 22, 0.14)',
+      FVG_BULL: 'rgba(16, 185, 129, 0.12)', FVG_BEAR: 'rgba(244, 63, 94, 0.12)'
+    };
+
+    // Cache stored signal states, active timeframe per symbol & zoom levels
+    const showTrendLinesMap = {};
+    const activeTFMap = {};
+    const zoomLevelMap = {};
+    const minZoom = 0.5;
+    const maxZoom = 3.0;
+
+    // ============ GLOBAL STATE ============
+    let isScanning = false;
+    let signalRegistry = new Map();  // id (symbol_direction) -> live signal entry
+    let marketRegime = { btc4hBias: null, btc1hBias: null, volatility: null, altEnv: null, lastUpdated: null };
+    let scanHealth = {
+      apiErrors: 0,
+      lastCandleUpdate: { '4H': null, '1H': null, '15M': null, '5M': null },
+      symbolsScanned: 0,
+      eligibleSymbols: 0,
+      lastSuccessfulScan: null,
+      connected: true
+    };
+    let activeFilters = { state: 'ALL', direction: 'ALL', grade: 'ALL', fresh: 'ALL', search: '', highRR: false, highVol: false };
+    let lastDiagnostics = null;
+    let monitorTimer = null;
+    let tickTimer = null;
+
+    // --- UTILITY FUNCTIONS ---
+    function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+
+    function formatNumber(val, decimals = 2) {
+      if (val === undefined || val === null || isNaN(val)) return '0.00';
+      if (val >= 1000) return val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+      if (val < 0.0001) return val.toFixed(6);
+      if (val < 1) return val.toFixed(4);
+      return val.toFixed(decimals);
+    }
+
+    function formatCurrency(val) {
+      if (val >= 1e9) return '$' + (val / 1e9).toFixed(2) + 'B';
+      if (val >= 1e6) return '$' + (val / 1e6).toFixed(2) + 'M';
+      if (val >= 1e3) return '$' + (val / 1e3).toFixed(2) + 'K';
+      return '$' + val.toFixed(2);
+    }
+
+    function timeAgo(ts) {
+      if (!ts) return '--';
+      const sec = Math.floor((Date.now() - ts) / 1000);
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
+      const hr = Math.floor(min / 60);
+      return `${hr}h ${min % 60}m ago`;
+    }
+
+    // Exponential Backoff Fetch
+    async function fetchWithRetry(url, retries = 5, delay = 1000) {
+      for (let i = 0; i < retries; i++) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) {
+            if (res.status === 429 || res.status === 418) {
+              await sleep(delay * Math.pow(2, i));
+              continue;
+            }
+            throw new Error(`HTTP Error ${res.status}`);
+          }
+          scanHealth.connected = true;
+          return await res.json();
+        } catch (err) {
+          if (i === retries - 1) {
+            scanHealth.apiErrors++;
+            scanHealth.connected = false;
+            throw err;
+          }
+          await sleep(delay * Math.pow(2, i));
+        }
+      }
+    }
+
+    // --- STEP 1: BINANCE MARKET UNIVERSE DISCOVERY ---
+    async function fetchEligibleUniverse() {
+      const exchangeInfo = await fetchWithRetry('https://fapi.binance.com/fapi/v1/exchangeInfo');
+      const usdtPerps = exchangeInfo.symbols.filter(s =>
+        s.quoteAsset === 'USDT' &&
+        s.contractType === 'PERPETUAL' &&
+        s.status === 'TRADING'
+      ).map(s => s.symbol);
+
+      const tickers = await fetchWithRetry('https://fapi.binance.com/fapi/v1/ticker/24hr');
+      const tickerMap = new Map();
+      tickers.forEach(t => {
+        tickerMap.set(t.symbol, {
+          volumeQuote: parseFloat(t.quoteVolume),
+          lastPrice: parseFloat(t.lastPrice),
+          priceChangePercent: parseFloat(t.priceChangePercent)
+        });
+      });
+
+      const eligible = [];
+      for (const symbol of usdtPerps) {
+        const stats = tickerMap.get(symbol);
+        if (stats && stats.volumeQuote >= MIN_24H_VOLUME_USD) {
+          eligible.push({ symbol, quoteVolume: stats.volumeQuote, lastPrice: stats.lastPrice, priceChangePercent: stats.priceChangePercent });
+        }
+      }
+      eligible.sort((a, b) => b.quoteVolume - a.quoteVolume);
+      return { eligible, totalSymbols: usdtPerps.length };
+    }
+
+    // --- STEP 2: TIME RANGE OPTIMIZED KLINES RETRIEVAL ---
+    async function fetchSymbolKlines(symbol, interval) {
+      let limit = 100;
+      let timeRange = '1 day';
+      switch (interval.toLowerCase()) {
+        case '4h': limit = 360; timeRange = '2 months'; break;
+        case '1h': limit = 168; timeRange = '1 week'; break;
+        case '15m': limit = 96; timeRange = '1 day'; break;
+        case '5m': limit = 48; timeRange = '4 hours'; break;
+      }
+      const url = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+      const raw = await fetchWithRetry(url);
+      const tfLabel = interval.toUpperCase();
+      scanHealth.lastCandleUpdate[tfLabel] = Date.now();
+      return {
+        candles: raw.map(c => ({ time: c[0], open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4]), volume: parseFloat(c[5]) })),
+        timeRange, limit
+      };
+    }
+
+    async function fetchCurrentPrice(symbol) {
+      const data = await fetchWithRetry(`https://fapi.binance.com/fapi/v1/ticker/price?symbol=${symbol}`);
+      return parseFloat(data.price);
+    }
+
+    // --- STEP 3: TECHNICAL ANALYSIS & STRUCTURE RECOGNITION (DETERMINISTIC — UNCHANGED CORE) ---
+
+    function findSwingPoints(candles, left = 2, right = 2) {
+      const swingHighs = [];
+      const swingLows = [];
+      for (let i = left; i < candles.length - right; i++) {
+        let isHigh = true, isLow = true;
+        for (let j = 1; j <= left; j++) {
+          if (candles[i - j].high >= candles[i].high) isHigh = false;
+          if (candles[i - j].low <= candles[i].low) isLow = false;
+        }
+        for (let j = 1; j <= right; j++) {
+          if (candles[i + j].high > candles[i].high) isHigh = false;
+          if (candles[i + j].low < candles[i].low) isLow = false;
+        }
+        if (isHigh) swingHighs.push({ index: i, price: candles[i].high, candle: candles[i], time: candles[i].time });
+        if (isLow) swingLows.push({ index: i, price: candles[i].low, candle: candles[i], time: candles[i].time });
+      }
+      return { swingHighs, swingLows };
+    }
+
+    function detectTrendLines(candles, swingHighs, swingLows, minPoints = 2) {
+      const lines = [];
+      if (!candles || candles.length < 10) return lines;
+      const currentPrice = candles[candles.length - 1].close;
+
+      for (let i = 0; i < swingLows.length - 1; i++) {
+        for (let j = i + 1; j < swingLows.length; j++) {
+          const p1 = swingLows[i], p2 = swingLows[j];
+          const dx = p2.index - p1.index;
+          if (dx < 3) continue;
+          const slope = (p2.price - p1.price) / dx;
+          let touches = [], maxDeviation = 0;
+          for (let k = 0; k < swingLows.length; k++) {
+            const sp = swingLows[k];
+            if (sp.index < p1.index) continue;
+            const expectedY = p1.price + slope * (sp.index - p1.index);
+            const devPct = Math.abs(sp.price - expectedY) / expectedY;
+            if (devPct <= 0.012) { touches.push(sp); if (devPct > maxDeviation) maxDeviation = devPct; }
+          }
+          if (touches.length >= minPoints) {
+            let broken = false, retested = false;
+            const lastIndex = candles.length - 1;
+            const currentLineY = p1.price + slope * (lastIndex - p1.index);
+            for (let cIdx = p2.index; cIdx < candles.length; cIdx++) {
+              const lineY = p1.price + slope * (cIdx - p1.index);
+              if (candles[cIdx].close < lineY * 0.992) broken = true;
+              if (broken && Math.abs(candles[cIdx].high - lineY) / lineY <= 0.005) retested = true;
+            }
+            const angleDeg = Math.round((Math.atan(slope) * 180) / Math.PI);
+            const dirLabel = slope > 0.0001 ? '↗ UP' : slope < -0.0001 ? '↘ DOWN' : '→ FLAT';
+            let classification = 'Minor';
+            if (touches.length >= 3 && maxDeviation < 0.006) classification = 'Major';
+            if (touches.length >= 3) classification = 'Dynamic Support';
+            if (broken) classification = 'Broken';
+            lines.push({ type: 'support', p1, p2, p1Time: p1.time, p2Time: p2.time, slope, touches: touches.length, touchPoints: touches, angle: angleDeg, dirLabel, broken, retested, classification, currentLineY, distPct: ((currentPrice - currentLineY) / currentLineY) * 100 });
+          }
+        }
+      }
+      for (let i = 0; i < swingHighs.length - 1; i++) {
+        for (let j = i + 1; j < swingHighs.length; j++) {
+          const p1 = swingHighs[i], p2 = swingHighs[j];
+          const dx = p2.index - p1.index;
+          if (dx < 3) continue;
+          const slope = (p2.price - p1.price) / dx;
+          let touches = [], maxDeviation = 0;
+          for (let k = 0; k < swingHighs.length; k++) {
+            const sp = swingHighs[k];
+            if (sp.index < p1.index) continue;
+            const expectedY = p1.price + slope * (sp.index - p1.index);
+            const devPct = Math.abs(sp.price - expectedY) / expectedY;
+            if (devPct <= 0.012) { touches.push(sp); if (devPct > maxDeviation) maxDeviation = devPct; }
+          }
+          if (touches.length >= minPoints) {
+            let broken = false, retested = false;
+            const lastIndex = candles.length - 1;
+            const currentLineY = p1.price + slope * (lastIndex - p1.index);
+            for (let cIdx = p2.index; cIdx < candles.length; cIdx++) {
+              const lineY = p1.price + slope * (cIdx - p1.index);
+              if (candles[cIdx].close > lineY * 1.008) broken = true;
+              if (broken && Math.abs(candles[cIdx].low - lineY) / lineY <= 0.005) retested = true;
+            }
+            const angleDeg = Math.round((Math.atan(slope) * 180) / Math.PI);
+            const dirLabel = slope > 0.0001 ? '↗ UP' : slope < -0.0001 ? '↘ DOWN' : '→ FLAT';
+            let classification = 'Minor';
+            if (touches.length >= 3 && maxDeviation < 0.006) classification = 'Major';
+            if (touches.length >= 3) classification = 'Dynamic Resistance';
+            if (broken) classification = 'Broken';
+            lines.push({ type: 'resistance', p1, p2, p1Time: p1.time, p2Time: p2.time, slope, touches: touches.length, touchPoints: touches, angle: angleDeg, dirLabel, broken, retested, classification, currentLineY, distPct: ((currentPrice - currentLineY) / currentLineY) * 100 });
+          }
+        }
+      }
+      const uniqueLines = [];
+      lines.sort((a, b) => b.touches - a.touches);
+      lines.forEach(line => {
+        const isDuplicate = uniqueLines.some(ul => ul.type === line.type && Math.abs(ul.slope - line.slope) < 0.001 && Math.abs(ul.p1.price - line.p1.price) / line.p1.price < 0.01);
+        if (!isDuplicate) uniqueLines.push(line);
+      });
+      return uniqueLines.slice(0, 4);
+    }
+
+    function detectConfluenceZones(trendLines, currentPrice, tolerancePct = 0.8) {
+      let activeSupportLines = 0, activeResLines = 0, nearBounce = false, nearRetest = false;
+      trendLines.forEach(tl => {
+        if (!tl.broken && Math.abs(tl.distPct) <= tolerancePct) {
+          nearBounce = true;
+          if (tl.type === 'support') activeSupportLines++;
+          if (tl.type === 'resistance') activeResLines++;
+        }
+        if (tl.retested && Math.abs(tl.distPct) <= tolerancePct) nearRetest = true;
+      });
+      return { nearBounce, nearRetest, activeSupportLines, activeResLines, isConfluence: (activeSupportLines + activeResLines) >= 2, isTrapped: activeSupportLines >= 1 && activeResLines >= 1 };
+    }
+
+    function findFVGs(candles) {
+      const fvgs = [];
+      for (let i = 2; i < candles.length; i++) {
+        const c1 = candles[i - 2], c2 = candles[i - 1], c3 = candles[i];
+        if (c1.high < c3.low && c2.close > c2.open) fvgs.push({ type: 'BULLISH', top: c3.low, bottom: c1.high, index: i - 1 });
+        else if (c1.low > c3.high && c2.close < c2.open) fvgs.push({ type: 'BEARISH', top: c1.low, bottom: c3.high, index: i - 1 });
+      }
+      return fvgs;
+    }
+
+    function findOrderBlocks(candles) {
+      const obs = [];
+      for (let i = 2; i < candles.length - 1; i++) {
+        const prev = candles[i - 1], curr = candles[i];
+        if (prev.close < prev.open && curr.close > curr.open && (curr.close - curr.open) > (prev.open - prev.close) * 1.5) obs.push({ type: 'BULLISH', high: prev.high, low: prev.low, index: i - 1 });
+        else if (prev.close > prev.open && curr.close < curr.open && (prev.close - prev.open) > (curr.open - curr.close) * 1.5) obs.push({ type: 'BEARISH', high: prev.high, low: prev.low, index: i - 1 });
+      }
+      return obs;
+    }
+
+    function analyze4H(klineObj) {
+      const candles = klineObj.candles;
+      const { swingHighs, swingLows } = findSwingPoints(candles, 2, 2);
+      if (swingHighs.length < 2 || swingLows.length < 2) return { bias: 'NEUTRAL', score: 0 };
+      const lastHigh = swingHighs[swingHighs.length - 1], prevHigh = swingHighs[swingHighs.length - 2];
+      const lastLow = swingLows[swingLows.length - 1], prevLow = swingLows[swingLows.length - 2];
+      let bias = 'NEUTRAL', score = 0;
+      if (lastHigh.price > prevHigh.price && lastLow.price > prevLow.price) { bias = 'BULLISH'; score = 25; }
+      else if (lastHigh.price < prevHigh.price && lastLow.price < prevLow.price) { bias = 'BEARISH'; score = 25; }
+      return { bias, score, lastHigh: lastHigh.price, lastLow: lastLow.price, swingHighs, swingLows };
+    }
+
+    // ============ SHARED LIQUIDITY / ZONE HELPERS ============
+    // Generic true liquidity sweep detector: sweeps a real recent swing point and closes back
+    // beyond it. Used for 1H liquidity confirmation and 15M sweep detection alike —
+    // this is deliberately NOT a simple higher-high/lower-low check.
+    function detectLiquiditySweep(candles, direction, lookback = 10, swingLeft = 2, swingRight = 2) {
+      if (candles.length < swingLeft + swingRight + 3) return { swept: false };
+      const { swingHighs, swingLows } = findSwingPoints(candles, swingLeft, swingRight);
+      const pool = direction === 'BULLISH' ? swingLows.slice(-4) : swingHighs.slice(-4);
+      const start = Math.max(0, candles.length - lookback);
+      for (const level of pool) {
+        for (let i = Math.max(start, level.index + 1); i < candles.length; i++) {
+          const c = candles[i];
+          if (direction === 'BULLISH' && c.low < level.price && c.close > level.price) {
+            return { swept: true, level: level.price, sweepIndex: i, sweepCandle: c, ageCandles: candles.length - 1 - i };
+          }
+          if (direction === 'BEARISH' && c.high > level.price && c.close < level.price) {
+            return { swept: true, level: level.price, sweepIndex: i, sweepCandle: c, ageCandles: candles.length - 1 - i };
+          }
+        }
+      }
+      return { swept: false };
+    }
+
+    // A fresh FVG/OB is invalid once price has already closed decisively through its far side —
+    // i.e. the zone has already been consumed / broken, not merely touched.
+    function isFVGValid(fvg, candles) {
+      for (let i = fvg.index + 1; i < candles.length; i++) {
+        if (fvg.type === 'BULLISH' && candles[i].close < fvg.bottom * 0.997) return false;
+        if (fvg.type === 'BEARISH' && candles[i].close > fvg.top * 1.003) return false;
+      }
+      return true;
+    }
+    function isOBValid(ob, candles) {
+      for (let i = ob.index + 1; i < candles.length; i++) {
+        if (ob.type === 'BULLISH' && candles[i].close < ob.low * 0.997) return false;
+        if (ob.type === 'BEARISH' && candles[i].close > ob.high * 1.003) return false;
+      }
+      return true;
+    }
+
+    // Builds the PRIMARY EXECUTION ZONE: the overlap of a fresh, valid, in-direction FVG and
+    // Order Block. Falls back to whichever single element exists if there's no true overlap.
+    function computeExecutionZone(fvgs, obs, candles, direction, freshnessCandles = 15) {
+      const cutoff = candles.length - 1 - freshnessCandles;
+      const freshFvgs = fvgs.filter(f => f.type === direction && f.index >= cutoff && isFVGValid(f, candles));
+      const freshObs = obs.filter(o => o.type === direction && o.index >= cutoff && isOBValid(o, candles));
+      if (!freshFvgs.length && !freshObs.length) return null;
+      const fvg = freshFvgs[freshFvgs.length - 1] || null;
+      const ob = freshObs[freshObs.length - 1] || null;
+      let zoneHigh, zoneLow, quality;
+      if (fvg && ob) {
+        const overlapHigh = Math.min(fvg.top, ob.high);
+        const overlapLow = Math.max(fvg.bottom, ob.low);
+        if (overlapHigh > overlapLow) { zoneHigh = overlapHigh; zoneLow = overlapLow; quality = 'CONFLUENCE'; }
+        else { zoneHigh = fvg.top; zoneLow = fvg.bottom; quality = 'FVG_ONLY'; }
+      } else if (fvg) { zoneHigh = fvg.top; zoneLow = fvg.bottom; quality = 'FVG_ONLY'; }
+      else { zoneHigh = ob.high; zoneLow = ob.low; quality = 'OB_ONLY'; }
+      return { zoneHigh, zoneLow, quality, fvg, ob, idealEntry: (zoneHigh + zoneLow) / 2 };
+    }
+
+    // 1H → true liquidity sweep + reclaim required (not a simple HH/LL).
+    function analyze1H(klineObj, bias4H) {
+      if (bias4H === 'NEUTRAL') return { confirmed: false, score: 0 };
+      const candles = klineObj.candles;
+      if (candles.length < 20) return { confirmed: false, score: 0 };
+      const sweep = detectLiquiditySweep(candles, bias4H, 24, 2, 2);
+      if (!sweep.swept || sweep.ageCandles > 12) return { confirmed: false, score: 0 };
+      return { confirmed: true, score: 20, sweepLevel: sweep.level, sweepAge: sweep.ageCandles };
+    }
+
+    // 15M → sweep, CHoCH/BOS, displacement, and a real execution zone — the four gates that
+    // must ALL be true and relevant before a setup is even considered "formed".
+    function analyze15M(klineObj, bias4H) {
+      const candles = klineObj.candles;
+      if (candles.length < 20) return null;
+      const { swingHighs, swingLows } = findSwingPoints(candles, 2, 2);
+      const fvgs = findFVGs(candles);
+      const obs = findOrderBlocks(candles);
+      const trendLines = detectTrendLines(candles, swingHighs, swingLows, 2);
+      const currentCandle = candles[candles.length - 1];
+      const currentPrice = currentCandle.close;
+
+      const sweep = detectLiquiditySweep(candles, bias4H, 12, 2, 2);
+      const sweepDetected = sweep.swept && sweep.ageCandles <= 8;
+      const sweepLevel = sweepDetected ? sweep.level : 0;
+      const scoreSweep = sweepDetected ? 15 : 0;
+
+      let chochDetected = false, scoreChoch = 0;
+      if (sweepDetected) {
+        if (bias4H === 'BULLISH' && swingHighs.length > 0) {
+          const recentHigh = swingHighs[swingHighs.length - 1].price;
+          if (currentCandle.close > recentHigh || candles[candles.length - 2].close > recentHigh) { chochDetected = true; scoreChoch = 15; }
+        } else if (bias4H === 'BEARISH' && swingLows.length > 0) {
+          const recentLow = swingLows[swingLows.length - 1].price;
+          if (currentCandle.close < recentLow || candles[candles.length - 2].close < recentLow) { chochDetected = true; scoreChoch = 15; }
+        }
+      }
+
+      // Displacement: a real momentum candle in-direction after the sweep, not just any close.
+      let displacementDetected = false, scoreDisplacement = 0;
+      if (chochDetected) {
+        const window = candles.slice(-10);
+        const bodies = window.map(c => Math.abs(c.close - c.open));
+        const avgBody = bodies.reduce((s, v) => s + v, 0) / bodies.length || 0.0001;
+        displacementDetected = candles.slice(sweep.sweepIndex).some(c => {
+          const body = Math.abs(c.close - c.open);
+          const isDir = bias4H === 'BULLISH' ? c.close > c.open : c.close < c.open;
+          return isDir && body >= avgBody * 1.4;
+        });
+        if (displacementDetected) scoreDisplacement = 10;
+      }
+
+      const zone = (chochDetected && displacementDetected) ? computeExecutionZone(fvgs, obs, candles, bias4H, 15) : null;
+      const scoreZone = zone ? (zone.quality === 'CONFLUENCE' ? 20 : 10) : 0;
+
+      const conf = detectConfluenceZones(trendLines, currentPrice);
+      let scoreTrendLines = 0;
+      if (conf.nearBounce) scoreTrendLines += 5;
+      if (conf.nearRetest) scoreTrendLines += 8;
+      if (conf.isConfluence) scoreTrendLines += 10;
+      if (conf.isTrapped) scoreTrendLines -= 5;
+
+      return {
+        sweepDetected, sweepLevel, chochDetected, displacementDetected, zone,
+        scoreSweep, scoreChoch, scoreDisplacement, scoreZone, scoreTrendLines,
+        swingHighs, swingLows, fvgs, obs, trendLines, confluenceInfo: conf
+      };
+    }
+
+    // ENTER is now purely: is price currently inside the valid 15M entry zone (with all
+    // higher-timeframe conditions still valid and R:R acceptable)? No 5M trigger required —
+    // 5M remains available on the chart for optional visual/context confirmation only.
+    function determineEntryStatus(zone, currentPrice, distancePct, maxDrift) {
+      if (!zone) return 'INVALID';
+      const inZone = currentPrice >= zone.zoneLow && currentPrice <= zone.zoneHigh;
+      if (inZone) return 'ENTER';
+      if (distancePct <= maxDrift) return 'WAIT';
+      return 'MISSED';
+    }
+
+    // ============ MARKET REGIME (BTC-LED) ============
+    async function evaluateMarketRegime() {
+      try {
+        const [k4h, k1h, k15m] = await Promise.all([
+          fetchSymbolKlines('BTCUSDT', '4h'),
+          fetchSymbolKlines('BTCUSDT', '1h'),
+          fetchSymbolKlines('BTCUSDT', '15m')
+        ]);
+        const res4H = analyze4H(k4h);
+        const res1H = analyze1H(k1h, res4H.bias === 'NEUTRAL' ? 'BULLISH' : res4H.bias); // just for structure check, not gating
+        const c15 = k15m.candles;
+        const atrLen = Math.min(14, c15.length);
+        let trSum = 0;
+        for (let i = c15.length - atrLen; i < c15.length; i++) trSum += (c15[i].high - c15[i].low);
+        const atr = trSum / atrLen;
+        const price = c15[c15.length - 1].close;
+        const atrPct = (atr / price) * 100;
+
+        let volatility = 'Normal';
+        if (atrPct < 0.25) volatility = 'Low';
+        else if (atrPct > 0.6) volatility = 'High';
+
+        let altEnv = 'Neutral';
+        if (res4H.bias === 'BULLISH' && volatility !== 'High') altEnv = 'Favorable';
+        else if (res4H.bias === 'BEARISH' && volatility === 'High') altEnv = 'Unfavorable';
+        else if (res4H.bias === 'BEARISH') altEnv = 'Neutral';
+
+        marketRegime = {
+          btc4hBias: res4H.bias,
+          btc1hBias: res1H.confirmed ? res4H.bias : 'NEUTRAL',
+          volatility,
+          atrPct,
+          altEnv,
+          lastUpdated: Date.now()
+        };
+      } catch (err) {
+        // Leave previous regime in place; do not fabricate a new one.
+      }
+      renderMarketRegime();
+    }
+
+    function renderMarketRegime() {
+      const bias4hEl = document.getElementById('regime4h');
+      const bias1hEl = document.getElementById('regime1h');
+      const volEl = document.getElementById('regimeVol');
+      const altEl = document.getElementById('regimeAlt');
+      const updEl = document.getElementById('regimeUpdated');
+      if (!marketRegime.lastUpdated) return;
+      const colorFor = b => b === 'BULLISH' ? 'text-emerald-400' : b === 'BEARISH' ? 'text-rose-400' : 'text-gray-400';
+      bias4hEl.textContent = marketRegime.btc4hBias;
+      bias4hEl.className = `font-mono font-semibold ${colorFor(marketRegime.btc4hBias)}`;
+      bias1hEl.textContent = marketRegime.btc1hBias;
+      bias1hEl.className = `font-mono font-semibold ${colorFor(marketRegime.btc1hBias)}`;
+      volEl.textContent = marketRegime.volatility;
+      altEl.textContent = marketRegime.altEnv;
+      altEl.className = `font-mono font-semibold ${marketRegime.altEnv === 'Favorable' ? 'text-emerald-400' : marketRegime.altEnv === 'Unfavorable' ? 'text-rose-400' : 'text-amber-400'}`;
+      updEl.textContent = `Updated ${timeAgo(marketRegime.lastUpdated)}`;
+    }
+
+    // ============ ENTRY PIPELINE (CORE 4H/1H/15M/15M-ENTRY-ZONE STRATEGY) ============
+    // Decision hierarchy: 4H bias -> 1H liquidity sweep -> 15M structure+displacement+FVG/OB
+    // creates a real entry zone -> current price position relative to that zone determines
+    // WAIT vs ENTER. 5M stays available on the chart for optional visual context only — it is
+    // never required to reach ENTER or a high score.
+    async function evaluateSymbol(item, diag) {
+      const symbol = item.symbol;
+      diag.scanned++;
+      try {
+        const [k4h, k1h, k15m, k5m] = await Promise.all([
+          fetchSymbolKlines(symbol, '4h'),
+          fetchSymbolKlines(symbol, '1h'),
+          fetchSymbolKlines(symbol, '15m'),
+          fetchSymbolKlines(symbol, '5m')
+        ]);
+        if (!k4h.candles.length || !k1h.candles.length || !k15m.candles.length || !k5m.candles.length) return null;
+
+        // --- 4H: directional bias authority ---
+        const res4H = analyze4H(k4h);
+        if (res4H.bias === 'NEUTRAL') return null;
+        diag.passed4H++;
+        const direction = res4H.bias;
+
+        // --- 1H: true liquidity sweep + reclaim (not a simple HH/LL) ---
+        const res1H = analyze1H(k1h, direction);
+        if (!res1H.confirmed) return null;
+        diag.passed1H++;
+
+        // --- 15M: sweep -> CHoCH/BOS -> displacement -> real entry zone (ALL required) ---
+        const res15M = analyze15M(k15m, direction);
+        if (!res15M || !res15M.sweepDetected) return null;
+        diag.passedSweep = (diag.passedSweep || 0) + 1;
+        if (!res15M.chochDetected) return null;
+        diag.passedChoch = (diag.passedChoch || 0) + 1;
+        if (!res15M.displacementDetected) return null;
+        diag.passedDisplacement = (diag.passedDisplacement || 0) + 1;
+        const zone = res15M.zone;
+        if (!zone) return null;
+        diag.passedZone = (diag.passedZone || 0) + 1;
+
+        const c15m = k15m.candles;
+        const currentPrice = k5m.candles[k5m.candles.length - 1].close;
+
+        let trSum = 0;
+        const atrLen = Math.min(14, c15m.length);
+        for (let i = c15m.length - atrLen; i < c15m.length; i++) trSum += (c15m[i].high - c15m[i].low);
+        const atr15m = trSum / atrLen;
+        const atr15mPct = (atr15m / currentPrice) * 100;
+
+        // --- Structure-based risk engine: SL beyond real invalidation point, TP from real swings only ---
+        const idealEntry = zone.idealEntry;
+        let stopLoss = 0, tp1 = 0, tp2 = 0, targets = [];
+
+        if (direction === 'BULLISH') {
+          const invalidationPoint = Math.min(res15M.sweepLevel, zone.zoneLow);
+          stopLoss = invalidationPoint - (atr15m * 0.35);
+          const risk = idealEntry - stopLoss;
+          if (risk <= 0) return null;
+          targets = [...res4H.swingHighs.map(s => s.price), ...res15M.swingHighs.map(s => s.price)]
+            .filter(p => p > idealEntry * 1.001).sort((a, b) => a - b)
+            .filter((p, i, arr) => i === 0 || (p - arr[i - 1]) / arr[i - 1] > 0.002);
+          if (targets.length < 2) return null; // No real structure to justify a TP2 — reject rather than fabricate.
+          tp1 = targets[0]; tp2 = targets[1];
+        } else {
+          const invalidationPoint = Math.max(res15M.sweepLevel, zone.zoneHigh);
+          stopLoss = invalidationPoint + (atr15m * 0.35);
+          const risk = stopLoss - idealEntry;
+          if (risk <= 0) return null;
+          targets = [...res4H.swingLows.map(s => s.price), ...res15M.swingLows.map(s => s.price)]
+            .filter(p => p < idealEntry * 0.999).sort((a, b) => b - a)
+            .filter((p, i, arr) => i === 0 || (arr[i - 1] - p) / p > 0.002);
+          if (targets.length < 2) return null;
+          tp1 = targets[0]; tp2 = targets[1];
+        }
+
+        const riskVal = Math.abs(idealEntry - stopLoss);
+        const rewardVal = Math.abs(tp2 - idealEntry);
+        const rrRatio = rewardVal / riskVal;
+        if (rrRatio >= 2.5) diag.passedRR++;
+        diag.qualified++;
+
+        // --- Entry status: purely zone containment + dynamic anti-chase drift (ATR + zone size) ---
+        const zoneSizePct = ((zone.zoneHigh - zone.zoneLow) / idealEntry) * 100;
+        const maxDrift = Math.max(zoneSizePct, atr15mPct * 1.2, 0.3);
+        const distPct = Math.abs((currentPrice - idealEntry) / idealEntry) * 100;
+        const entryStatus = determineEntryStatus(zone, currentPrice, distPct, maxDrift);
+        if (entryStatus === 'ENTER') diag.reachedEntry = (diag.reachedEntry || 0) + 1;
+
+        // --- THREE-PART SCORE: Structure / Entry / Risk. 90+ is reachable on 4H+1H+15M alone. ---
+        const structuralRaw = res4H.score + res1H.score + res15M.scoreSweep + res15M.scoreChoch + res15M.scoreDisplacement + res15M.scoreZone;
+        const structuralMax = 25 + 20 + 15 + 15 + 10 + 20;
+        const structuralScore = Math.round(Math.min(1, structuralRaw / structuralMax) * 100);
+
+        // Entry score: price position relative to zone + zone quality + freshness — NOT 5M triggers.
+        let positionScore;
+        if (entryStatus === 'ENTER') positionScore = 40;
+        else if (entryStatus === 'WAIT') positionScore = Math.round(40 * (1 - Math.min(1, distPct / maxDrift)));
+        else positionScore = 0;
+        const zoneQualityScore = zone.quality === 'CONFLUENCE' ? 30 : 18;
+        const rrBonusForEntry = Math.min(30, Math.max(0, (rrRatio - 2.5) * 15));
+        const entryRaw = positionScore + zoneQualityScore + rrBonusForEntry;
+        const entryScore = Math.round(Math.min(1, entryRaw / 100) * 100);
+
+        const rrQualityRaw = Math.min(30, Math.max(0, (rrRatio - 2.5) * 15));
+        let targetConflict = false, conflictNote = null;
+        if (direction === 'BULLISH') {
+          const between = targets.filter(p => p > idealEntry && p < tp2 * 0.997 && p !== tp1 && p !== tp2);
+          if (between.length > 0) { targetConflict = true; conflictNote = `Prior swing high at ${formatNumber(between[0])} sits before TP2 — target may face resistance.`; }
+        } else {
+          const between = targets.filter(p => p < idealEntry && p > tp2 * 1.003 && p !== tp1 && p !== tp2);
+          if (between.length > 0) { targetConflict = true; conflictNote = `Prior swing low at ${formatNumber(between[0])} sits before TP2 — target may face support.`; }
+        }
+        const riskRaw = 30 /* structure-based SL, always true here */ + rrQualityRaw + (targetConflict ? 5 : 20) + 20;
+        const riskScore = Math.round(Math.min(1, riskRaw / 100) * 100);
+
+        const totalScore = Math.round(structuralScore * 0.4 + entryScore * 0.35 + riskScore * 0.25);
+        const rrFeasibility = { conflict: targetConflict, note: conflictNote };
+
+        // --- WHY THIS TRADE / WHY WAIT — reflects the ACTUAL state reached, no 5M requirement mentioned ---
+        const sweepType = direction === 'BULLISH' ? 'sell-side' : 'buy-side';
+        const whyChecklist = [
+          { label: `4H ${direction} Bias Confirmed`, pass: true },
+          { label: `1H ${sweepType} Liquidity Swept & Reclaimed`, pass: true },
+          { label: `15M ${sweepType} Liquidity Sweep @ ${formatNumber(res15M.sweepLevel)}`, pass: true },
+          { label: '15M CHoCH / BOS Confirmed', pass: true },
+          { label: '15M Displacement Confirmed', pass: true },
+          { label: `Entry Zone Formed (${zone.quality === 'CONFLUENCE' ? 'FVG + OB Confluence' : zone.quality.replace('_', ' ')})`, pass: true }
+        ];
+        if (entryStatus === 'ENTER') whyChecklist.push({ label: 'Price Has Reached the Valid Entry Zone', pass: true });
+        whyChecklist.push({ label: `R:R ${formatNumber(rrRatio, 1)}:1 (>= 2.5 required)`, pass: true });
+
+        let setupReason;
+        if (entryStatus === 'ENTER') {
+          setupReason = `4H ${direction.toLowerCase()} bias confirmed. 1H ${sweepType} liquidity swept and reclaimed. 15M structure and displacement confirmed a ${zone.quality === 'CONFLUENCE' ? 'confluent FVG/Order Block' : 'valid'} entry zone. Price has entered the valid execution zone. R:R = ${formatNumber(rrRatio, 1)}:1. No structural invalidation detected. ENTRY CONDITIONS CONFIRMED.`;
+        } else if (entryStatus === 'WAIT') {
+          setupReason = `4H ${direction.toLowerCase()} bias confirmed. 1H liquidity swept. 15M structure and displacement confirmed with a fresh ${zone.quality === 'CONFLUENCE' ? 'FVG + Order Block' : zone.quality.replace('_', ' ')} entry zone (${formatNumber(zone.zoneLow)}–${formatNumber(zone.zoneHigh)}). Current price has not yet reached the preferred entry area. Waiting for price to return to the valid 15M entry zone.`;
+        } else {
+          setupReason = `Higher-timeframe setup was valid, but price moved beyond the acceptable entry window (${formatNumber(maxDrift, 2)}% dynamic drift allowance) without reaching the zone. Entry opportunity missed.`;
+        }
+
+        return {
+          id: `${symbol}_${direction === 'BULLISH' ? 'LONG' : 'SHORT'}`,
+          symbol,
+          direction: direction === 'BULLISH' ? 'LONG' : 'SHORT',
+          direction4H: direction,
+          score: totalScore,
+          structuralScore, entryScore, riskScore,
+          entryStatus,
+          zone,
+          entryPrice: idealEntry, stopLoss, tp1, tp2, rrRatio,
+          quoteVolume: item.quoteVolume,
+          entryDistancePct: distPct,
+          maxDrift,
+          setupReason,
+          whyChecklist,
+          rrFeasibility,
+          regimeAtEntry: marketRegime.lastUpdated ? { btc4hBias: marketRegime.btc4hBias, altEnv: marketRegime.altEnv } : null,
+          breakdown: { score4H: res4H.score, score1H: res1H.score, scoreSweep: res15M.scoreSweep, scoreChoch: res15M.scoreChoch, scoreDisplacement: res15M.scoreDisplacement, scoreZone: res15M.scoreZone, scoreTrendLines: res15M.scoreTrendLines },
+          candles: { '4H': k4h, '1H': k1h, '15M': k15m, '5M': k5m },
+          levels: { sweepLevel: res15M.sweepLevel },
+          trendLines15M: res15M.trendLines || [],
+          obs15M: res15M.obs || [],
+          fvgs15M: res15M.fvgs || [],
+          closes1H: k1h.candles.map(c => c.close)
+        };
+      } catch (err) {
+        return null;
+      }
+    }
+
+    // ============ CORRELATION / EXPOSURE DETECTION (computed from real 1H returns) ============
+    function toReturns(closes) {
+      const r = [];
+      for (let i = 1; i < closes.length; i++) r.push((closes[i] - closes[i - 1]) / closes[i - 1]);
+      return r;
+    }
+    function pearsonCorrelation(a, b) {
+      const n = Math.min(a.length, b.length);
+      if (n < 10) return 0;
+      const aa = a.slice(-n), bb = b.slice(-n);
+      const meanA = aa.reduce((s, v) => s + v, 0) / n, meanB = bb.reduce((s, v) => s + v, 0) / n;
+      let num = 0, denA = 0, denB = 0;
+      for (let i = 0; i < n; i++) { const da = aa[i] - meanA, db = bb[i] - meanB; num += da * db; denA += da * da; denB += db * db; }
+      const den = Math.sqrt(denA * denB);
+      return den === 0 ? 0 : num / den;
+    }
+
+    function computeCorrelationExposure(entries) {
+      const active = entries.filter(e => e.status === 'ACTIVE' && (e.state === 'ENTER' || e.state === 'WAIT') && e.closes1H);
+      const groups = { LONG: active.filter(e => e.direction === 'LONG'), SHORT: active.filter(e => e.direction === 'SHORT') };
+      const warnings = [];
+      Object.entries(groups).forEach(([dir, list]) => {
+        if (list.length < 3) return;
+        let pairs = 0, sumCorr = 0;
+        for (let i = 0; i < list.length; i++) {
+          for (let j = i + 1; j < list.length; j++) {
+            const c = pearsonCorrelation(toReturns(list[i].closes1H), toReturns(list[j].closes1H));
+            sumCorr += c; pairs++;
+          }
+        }
+        const avg = pairs ? sumCorr / pairs : 0;
+        if (avg > 0.7) warnings.push({ direction: dir, symbols: list.map(e => e.symbol), avgCorrelation: avg });
+      });
+      return warnings;
+    }
+
+    function renderCorrelationWarning() {
+      const box = document.getElementById('correlationWarning');
+      const text = document.getElementById('correlationWarningText');
+      const warnings = computeCorrelationExposure(Array.from(signalRegistry.values()));
+      if (!warnings.length) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      text.innerHTML = warnings.map(w =>
+        `<strong>⚠️ HIGH CORRELATED EXPOSURE</strong> — ${w.symbols.length} ${w.direction} setups detected with strong 1H price correlation (avg r=${w.avgCorrelation.toFixed(2)}): ${w.symbols.join(', ')}.`
+      ).join('<br/>');
+    }
+
+    // ============ SIGNAL STATE / FRESHNESS / LIFECYCLE ============
+    function classifyFreshness(createdAt) {
+      const min = (Date.now() - createdAt) / 60000;
+      if (min <= 2) return { label: '🆕 NEW', cls: 'text-blue-400' };
+      if (min <= 5) return { label: '🟢 FRESH', cls: 'text-emerald-400' };
+      if (min <= 15) return { label: '🟡 AGING', cls: 'text-amber-400' };
+      if (min <= 30) return { label: '🟠 VERY AGED', cls: 'text-orange-400' };
+      return { label: '🔴 EXPIRED', cls: 'text-rose-400' };
+    }
+
+    function evaluateOutcome(entry, currentPrice) {
+      const isLong = entry.direction === 'LONG';
+      if (isLong) {
+        if (currentPrice <= entry.stopLoss) return 'SL_HIT';
+        if (currentPrice >= entry.tp2) return 'TP2_HIT';
+        if (currentPrice >= entry.tp1 && !entry.tp1HitAt) return 'TP1_HIT';
+      } else {
+        if (currentPrice >= entry.stopLoss) return 'SL_HIT';
+        if (currentPrice <= entry.tp2) return 'TP2_HIT';
+        if (currentPrice <= entry.tp1 && !entry.tp1HitAt) return 'TP1_HIT';
+      }
+      return null;
+    }
+
+    function finalizeSignal(id, entry, outcome, price) {
+      entry.status = outcome;
+      entry.closedAt = Date.now();
+      entry.exitPrice = price;
+      const risk = Math.abs(entry.entryPrice - entry.stopLoss);
+      const rMultiple = entry.direction === 'LONG' ? (price - entry.entryPrice) / risk : (entry.entryPrice - price) / risk;
+      addHistoryRecord({
+        symbol: entry.symbol, direction: entry.direction, createdAt: entry.createdAt, closedAt: entry.closedAt,
+        entryPrice: entry.entryPrice, stopLoss: entry.stopLoss, tp1: entry.tp1, tp2: entry.tp2,
+        exitPrice: price, outcome, rMultiple, score: entry.score, structuralScore: entry.structuralScore,
+        entryScore: entry.entryScore, regimeAtEntry: entry.regimeAtEntry || null, timeToOutcomeMs: entry.closedAt - entry.createdAt
+      });
+    }
+
+    function invalidateSignal(entry, reason, price) {
+      entry.status = 'INVALIDATED';
+      entry.closedAt = Date.now();
+      entry.invalidation = { reason, time: Date.now(), price, originalScore: entry.score, currentScore: entry.score };
+      addHistoryRecord({
+        symbol: entry.symbol, direction: entry.direction, createdAt: entry.createdAt, closedAt: entry.closedAt,
+        entryPrice: entry.entryPrice, stopLoss: entry.stopLoss, tp1: entry.tp1, tp2: entry.tp2,
+        exitPrice: price, outcome: 'INVALIDATED', rMultiple: null, score: entry.score, structuralScore: entry.structuralScore,
+        entryScore: entry.entryScore, regimeAtEntry: entry.regimeAtEntry || null, timeToOutcomeMs: entry.closedAt - entry.createdAt
+      });
+    }
+
+    function expireSignal(entry, price, reason) {
+      entry.status = 'EXPIRED';
+      entry.closedAt = Date.now();
+      entry.invalidation = { reason: reason || 'Signal expired — no valid entry reached within 30 minutes', time: Date.now(), price, originalScore: entry.score, currentScore: entry.score };
+      addHistoryRecord({
+        symbol: entry.symbol, direction: entry.direction, createdAt: entry.createdAt, closedAt: entry.closedAt,
+        entryPrice: entry.entryPrice, stopLoss: entry.stopLoss, tp1: entry.tp1, tp2: entry.tp2,
+        exitPrice: price, outcome: 'EXPIRED', rMultiple: null, score: entry.score, structuralScore: entry.structuralScore,
+        entryScore: entry.entryScore, regimeAtEntry: entry.regimeAtEntry || null, timeToOutcomeMs: entry.closedAt - entry.createdAt
+      });
+    }
+
+    function missSignal(entry, price, reason) {
+      entry.status = 'MISSED';
+      entry.closedAt = Date.now();
+      entry.invalidation = { reason: reason || 'Price moved beyond the valid entry window without reaching the zone', time: Date.now(), price, originalScore: entry.score, currentScore: entry.score };
+      addHistoryRecord({
+        symbol: entry.symbol, direction: entry.direction, createdAt: entry.createdAt, closedAt: entry.closedAt,
+        entryPrice: entry.entryPrice, stopLoss: entry.stopLoss, tp1: entry.tp1, tp2: entry.tp2,
+        exitPrice: price, outcome: 'MISSED', rMultiple: null, score: entry.score, structuralScore: entry.structuralScore,
+        entryScore: entry.entryScore, regimeAtEntry: entry.regimeAtEntry || null, timeToOutcomeMs: entry.closedAt - entry.createdAt
+      });
+    }
+
+    // Lightweight, network-based re-check for a signal that already exists in the registry.
+    // Re-runs structural validity AND zone containment against the LOCKED entry zone formed
+    // when the signal was first created.
+    async function recheckSignal(id) {
+      const entry = signalRegistry.get(id);
+      if (!entry || entry.status !== 'ACTIVE') return;
+      try {
+        const [k4h, k15m, currentPrice] = await Promise.all([
+          fetchSymbolKlines(entry.symbol, '4h'),
+          fetchSymbolKlines(entry.symbol, '15m'),
+          fetchCurrentPrice(entry.symbol)
+        ]);
+
+        const outcome = evaluateOutcome(entry, currentPrice);
+        if (outcome === 'SL_HIT' || outcome === 'TP2_HIT') { finalizeSignal(id, entry, outcome, currentPrice); return; }
+        if (outcome === 'TP1_HIT') { entry.tp1HitAt = Date.now(); }
+
+        const res4H = analyze4H(k4h);
+        if (res4H.bias !== entry.direction4H) {
+          invalidateSignal(entry, `${entry.direction4H === 'BULLISH' ? '4H bullish' : '4H bearish'} structure broken — bias shifted to ${res4H.bias}`, currentPrice);
+          return;
+        }
+        const res15M = analyze15M(k15m, res4H.bias);
+        if (!res15M || !res15M.sweepDetected || !res15M.chochDetected || !res15M.displacementDetected) {
+          invalidateSignal(entry, '15M structure invalidated — original sweep / CHoCH / displacement setup no longer holds', currentPrice);
+          return;
+        }
+
+        // Re-evaluate zone containment against the ORIGINAL locked zone (zone itself is not recomputed).
+        let trSum = 0;
+        const c15m = k15m.candles;
+        const atrLen = Math.min(14, c15m.length);
+        for (let i = c15m.length - atrLen; i < c15m.length; i++) trSum += (c15m[i].high - c15m[i].low);
+        const atr15mPct = ((trSum / atrLen) / currentPrice) * 100;
+        const zoneSizePct = ((entry.zone.zoneHigh - entry.zone.zoneLow) / entry.entryPrice) * 100;
+        const maxDrift = Math.max(zoneSizePct, atr15mPct * 1.2, 0.3);
+        const distPct = Math.abs((currentPrice - entry.entryPrice) / entry.entryPrice) * 100;
+        const entryStatus = determineEntryStatus(entry.zone, currentPrice, distPct, maxDrift);
+
+        if (entryStatus === 'MISSED' && !entry.firstReadyAt) {
+          missSignal(entry, currentPrice, 'Price moved beyond the valid entry window without reaching the zone (missed entry)');
+          return;
+        }
+        if (Date.now() - entry.createdAt > EXPIRE_AFTER_MS && !entry.firstReadyAt) {
+          expireSignal(entry, currentPrice, 'Signal expired — no valid entry reached within 30 minutes');
+          return;
+        }
+
+        entry.livePrice = currentPrice;
+        entry.entryDistancePct = distPct;
+        entry.maxDrift = maxDrift;
+        entry.entryStatus = entryStatus;
+        if (entryStatus === 'ENTER' && !entry.firstReadyAt) entry.firstReadyAt = Date.now();
+        entry.lastUpdated = Date.now();
+      } catch (err) {
+        // Network failure on recheck: leave signal as-is, surfaced via scan health, do not fabricate a status change.
+      }
+    }
+
+    async function monitorActiveSignals() {
+      if (isScanning) return;
+      const now = Date.now();
+      // Clean up long-closed entries first
+      signalRegistry.forEach((entry, id) => {
+        if (entry.status !== 'ACTIVE' && entry.closedAt && (now - entry.closedAt) > STALE_REMOVE_MS) signalRegistry.delete(id);
+      });
+      const activeIds = Array.from(signalRegistry.entries()).filter(([, e]) => e.status === 'ACTIVE').map(([id]) => id);
+      for (let i = 0; i < activeIds.length; i += BATCH_SIZE) {
+        await Promise.all(activeIds.slice(i, i + BATCH_SIZE).map(id => recheckSignal(id)));
+      }
+      renderSignals();
+      renderScanHealth();
+      renderHistoryPanel();
+      renderCorrelationWarning();
+    }
+
+    function reconcileRegistry(freshResults) {
+      const now = Date.now();
+      const freshMap = new Map(freshResults.map(r => [r.id, r]));
+      freshMap.forEach((fresh, id) => {
+        const existing = signalRegistry.get(id);
+        if (existing && existing.status === 'ACTIVE') {
+          const createdAt = existing.createdAt;
+          const firstReadyAt = existing.firstReadyAt || (fresh.entryStatus === 'ENTER' ? now : null);
+          signalRegistry.set(id, { ...fresh, createdAt, status: 'ACTIVE', firstReadyAt, lastUpdated: now, livePrice: fresh.entryPrice });
+        } else if (!existing) {
+          signalRegistry.set(id, { ...fresh, createdAt: now, status: 'ACTIVE', firstReadyAt: fresh.entryStatus === 'ENTER' ? now : null, lastUpdated: now, livePrice: fresh.entryPrice });
+        }
+        // If existing but not ACTIVE (already resolved), leave the closed record alone.
+      });
+    }
+
+    // ============ SIGNAL HISTORY (localStorage — real outcomes only) ============
+    function loadHistory() {
+      try { const raw = localStorage.getItem(HISTORY_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
+    }
+    function saveHistory(arr) {
+      try { localStorage.setItem(HISTORY_KEY, JSON.stringify(arr.slice(-1000))); } catch {}
+    }
+    function addHistoryRecord(record) {
+      const hist = loadHistory();
+      hist.push(record);
+      saveHistory(hist);
+    }
+    function computeStats() {
+      const hist = loadHistory();
+      const decisive = hist.filter(h => h.outcome === 'TP1_HIT' || h.outcome === 'TP2_HIT' || h.outcome === 'SL_HIT');
+      const wins = decisive.filter(h => h.outcome === 'TP1_HIT' || h.outcome === 'TP2_HIT');
+      const losses = decisive.filter(h => h.outcome === 'SL_HIT');
+      const total = decisive.length;
+      const winRate = total ? (wins.length / total) * 100 : null;
+      const avgR = total ? decisive.reduce((s, h) => s + (h.rMultiple || 0), 0) / total : null;
+      const grossWin = wins.reduce((s, h) => s + Math.max(0, h.rMultiple || 0), 0);
+      const grossLossAbs = Math.abs(losses.reduce((s, h) => s + Math.min(0, h.rMultiple || 0), 0));
+      const profitFactor = grossLossAbs > 0 ? grossWin / grossLossAbs : (grossWin > 0 ? null : null);
+      const avgTimeToOutcome = total ? decisive.reduce((s, h) => s + h.timeToOutcomeMs, 0) / total : null;
+      return { totalRecorded: hist.length, totalDecisive: total, wins: wins.length, losses: losses.length, winRate, avgR, profitFactor, avgTimeToOutcome, hist };
+    }
+    function resetHistory() {
+      if (!confirm('Clear all recorded signal history and performance statistics? This cannot be undone.')) return;
+      localStorage.removeItem(HISTORY_KEY);
+      renderHistoryPanel();
+    }
+
+    function renderHistoryPanel() {
+      const stats = computeStats();
+      const panel = document.getElementById('statsPanel');
+      const note = document.getElementById('historyEmptyNote');
+      const tbody = document.getElementById('historyTableBody');
+
+      if (stats.totalRecorded === 0) {
+        panel.innerHTML = '';
+        note.classList.remove('hidden');
+        tbody.innerHTML = '';
+        return;
+      }
+      note.classList.add('hidden');
+
+      const winRateDisplay = stats.totalDecisive >= MIN_TRADES_FOR_WINRATE
+        ? `${stats.winRate.toFixed(1)}%`
+        : `Insufficient data (n=${stats.totalDecisive})`;
+
+      panel.innerHTML = `
+        <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+          <span class="text-gray-500 uppercase text-[10px]">Recorded Signals</span>
+          <div class="text-lg font-bold text-white font-mono">${stats.totalRecorded}</div>
+        </div>
+        <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+          <span class="text-gray-500 uppercase text-[10px]">Win Rate (TP vs SL)</span>
+          <div class="text-lg font-bold ${stats.totalDecisive >= MIN_TRADES_FOR_WINRATE ? 'text-emerald-400' : 'text-amber-400'} font-mono">${winRateDisplay}</div>
+        </div>
+        <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+          <span class="text-gray-500 uppercase text-[10px]">Average R</span>
+          <div class="text-lg font-bold text-white font-mono">${stats.avgR !== null ? (stats.avgR >= 0 ? '+' : '') + stats.avgR.toFixed(2) + 'R' : '--'}</div>
+        </div>
+        <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+          <span class="text-gray-500 uppercase text-[10px]">Profit Factor</span>
+          <div class="text-lg font-bold text-white font-mono">${stats.profitFactor !== null ? stats.profitFactor.toFixed(2) : '--'}</div>
+        </div>
+      `;
+
+      const recent = stats.hist.slice(-30).reverse();
+      tbody.innerHTML = recent.map(h => {
+        const outcomeColor = h.outcome === 'TP1_HIT' || h.outcome === 'TP2_HIT' ? 'text-emerald-400' : h.outcome === 'SL_HIT' ? 'text-rose-400' : 'text-gray-400';
+        return `<tr class="border-b border-gray-900">
+          <td class="py-1.5 pr-3 font-semibold text-white">${h.symbol}</td>
+          <td class="py-1.5 pr-3">${h.direction}</td>
+          <td class="py-1.5 pr-3 font-mono">${h.score}</td>
+          <td class="py-1.5 pr-3 font-semibold ${outcomeColor}">${h.outcome.replace('_', ' ')}</td>
+          <td class="py-1.5 pr-3 font-mono">${h.rMultiple !== null && h.rMultiple !== undefined ? (h.rMultiple >= 0 ? '+' : '') + h.rMultiple.toFixed(2) + 'R' : '--'}</td>
+          <td class="py-1.5 pr-3 text-gray-500">${new Date(h.closedAt).toLocaleString()}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ============ SCAN HEALTH RENDER ============
+    function renderScanHealth() {
+      document.getElementById('healthApi').innerHTML = scanHealth.connected ? '🟢 Connected' : '🔴 Disconnected';
+      document.getElementById('healthApi').className = `font-mono font-semibold ${scanHealth.connected ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('healthErrors').textContent = scanHealth.apiErrors;
+      ['4h', '1h', '15m', '5m'].forEach(tf => {
+        const el = document.getElementById(`health${tf}`);
+        const ts = scanHealth.lastCandleUpdate[tf.toUpperCase()];
+        el.textContent = ts ? `🟢 ${timeAgo(ts)}` : '—';
+        el.className = `font-mono ${ts ? 'text-emerald-400' : 'text-gray-500'}`;
+      });
+      document.getElementById('healthScanned').textContent = `${scanHealth.symbolsScanned} / ${scanHealth.eligibleSymbols}`;
+      document.getElementById('healthLastScan').textContent = scanHealth.lastSuccessfulScan ? new Date(scanHealth.lastSuccessfulScan).toLocaleTimeString() : 'Never';
+
+      const connDot = document.getElementById('connDot');
+      const connText = document.getElementById('connText');
+      if (scanHealth.connected) { connDot.className = 'w-2 h-2 rounded-full bg-emerald-400 animate-pulse'; connText.textContent = 'Binance Futures API Connected'; }
+      else { connDot.className = 'w-2 h-2 rounded-full bg-rose-500'; connText.textContent = 'API Connection Issue'; }
+    }
+
+    // ============ MAIN MARKET SCANNER CONTROLLER ============
+    async function runMarketScan() {
+      if (isScanning) return;
+      isScanning = true;
+
+      const scanBtn = document.getElementById('scanBtn');
+      const progressContainer = document.getElementById('progressContainer');
+      const scanDetailLog = document.getElementById('scanDetailLog');
+      const progressBar = document.getElementById('progressBar');
+      const progressBarFill = document.getElementById('progressBarFill');
+      const eligibleCountEl = document.getElementById('eligibleCount');
+      const scanProgressEl = document.getElementById('scanProgress');
+      const scanStatusSub = document.getElementById('scanStatusSub');
+      const qualifiedCountEl = document.getElementById('qualifiedCount');
+      const signalsList = document.getElementById('signalsList');
+      const emptyState = document.getElementById('emptyState');
+      const diagnosticsBox = document.getElementById('diagnosticsBox');
+
+      scanBtn.disabled = true;
+      scanBtn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-base"></i><span>SCANNING...</span>`;
+      progressContainer.classList.remove('hidden');
+      diagnosticsBox.classList.add('hidden');
+      document.getElementById('emptyStateTitle').innerText = 'SCANNING IN PROGRESS...';
+      document.getElementById('emptyStateDesc').innerText = 'Retrieving real USDT-M Perpetual market universe and running top-down SMC structural & trend line analysis.';
+
+      const diag = { totalSymbols: 0, eligible: 0, scanned: 0, passed4H: 0, passed1H: 0, passedSweep: 0, passedChoch: 0, passedDisplacement: 0, passedZone: 0, reachedEntry: 0, passedRR: 0, qualified: 0 };
+
+      try {
+        scanDetailLog.innerText = 'Evaluating BTC market regime...';
+        await evaluateMarketRegime();
+
+        scanDetailLog.innerText = 'Fetching exchange tickers and 24h quote volumes (>= $2M)...';
+        const { eligible: universe, totalSymbols } = await fetchEligibleUniverse();
+        diag.totalSymbols = totalSymbols;
+        diag.eligible = universe.length;
+        scanHealth.eligibleSymbols = universe.length;
+
+        eligibleCountEl.innerText = universe.length;
+        scanProgressEl.innerText = `0 / ${universe.length}`;
+        scanStatusSub.innerText = 'Scanning...';
+
+        const foundSignals = [];
+        let completed = 0;
+
+        for (let i = 0; i < universe.length; i += BATCH_SIZE) {
+          const batch = universe.slice(i, i + BATCH_SIZE);
+          scanDetailLog.innerText = `Analyzing real candles & trend lines for ${batch.map(b => b.symbol).join(', ')}...`;
+          const results = await Promise.all(batch.map(item => evaluateSymbol(item, diag)));
+          for (const res of results) if (res) foundSignals.push(res);
+          completed += batch.length;
+          scanHealth.symbolsScanned = completed;
+          const pct = Math.min(100, Math.round((completed / universe.length) * 100));
+          progressBar.style.width = `${pct}%`;
+          progressBarFill.style.width = `${pct}%`;
+          scanProgressEl.innerText = `${completed} / ${universe.length}`;
+          qualifiedCountEl.innerText = foundSignals.length;
+          await sleep(150);
+        }
+
+        foundSignals.sort((a, b) => { if (b.score !== a.score) return b.score - a.score; if (b.rrRatio !== a.rrRatio) return b.rrRatio - a.rrRatio; return b.quoteVolume - a.quoteVolume; });
+
+        reconcileRegistry(foundSignals);
+        lastDiagnostics = diag;
+        scanHealth.connected = true;
+        scanHealth.lastSuccessfulScan = Date.now();
+        document.getElementById('lastScanTime').innerText = `Last scan: ${new Date().toLocaleTimeString()}`;
+
+        renderSignals();
+        renderScanHealth();
+        renderCorrelationWarning();
+        renderHistoryPanel();
+
+        if (!monitorTimer) monitorTimer = setInterval(monitorActiveSignals, MONITOR_INTERVAL_MS);
+        if (!tickTimer) tickTimer = setInterval(() => renderSignals(), TICK_INTERVAL_MS);
+
+      } catch (err) {
+        alert('Market scan encountered an error: ' + err.message);
+        renderScanHealth();
+      } finally {
+        isScanning = false;
+        scanBtn.disabled = false;
+        scanBtn.innerHTML = `<i class="fa-solid fa-crosshairs text-base"></i><span>SCAN MARKET</span>`;
+        progressContainer.classList.add('hidden');
+        scanStatusSub.innerText = 'Scan Complete';
+      }
+    }
+
+    // ============ FILTERS ============
+    function setFilter(key, value) {
+      activeFilters[key] = value;
+      document.querySelectorAll(`[data-f="${key}"]`).forEach(btn => btn.classList.toggle('active', btn.dataset.v === value));
+      renderSignals();
+    }
+    function toggleFilter(key) {
+      activeFilters[key] = !activeFilters[key];
+      const btn = document.querySelector(`[data-f="${key}"]`);
+      if (btn) btn.classList.toggle('active', activeFilters[key]);
+      renderSignals();
+    }
+    function gradeOf(score) { return score >= 90 ? 'A+' : score >= 85 ? 'A' : 'B+'; }
+
+    function applyFilters(list) {
+      return list.filter(sig => {
+        if (activeFilters.direction !== 'ALL' && sig.direction !== activeFilters.direction) return false;
+        if (activeFilters.grade !== 'ALL' && gradeOf(sig.score) !== activeFilters.grade) return false;
+        if (activeFilters.highRR && sig.rrRatio < 4) return false;
+        if (activeFilters.highVol && sig.quoteVolume < 20000000) return false;
+        if (activeFilters.fresh === 'FRESH' && classifyFreshness(sig.createdAt).label.indexOf('FRESH') === -1) return false;
+        if (activeFilters.state !== 'ALL') {
+          let displayState = 'INVALID';
+          if (sig.status === 'ACTIVE') {
+            if (sig.entryStatus === 'ENTER') displayState = 'ENTER';
+            else if (sig.entryStatus === 'WAIT') displayState = 'WAIT';
+          }
+          if (displayState !== activeFilters.state) return false;
+        }
+        return true;
+      });
+    }
+
+    // ============ RENDER SIGNALS TO DOM ============
+    function renderSignals() {
+      const signalsList = document.getElementById('signalsList');
+      const emptyState = document.getElementById('emptyState');
+      const filterBar = document.getElementById('filterBar');
+      const diagnosticsBox = document.getElementById('diagnosticsBox');
+      const qualifiedSub = document.getElementById('qualifiedSub');
+
+      const all = Array.from(signalRegistry.values()).sort((a, b) => {
+        if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
+        if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1;
+        if (b.score !== a.score) return b.score - a.score;
+        return b.rrRatio - a.rrRatio;
+      });
+
+      const enterCount = all.filter(s => s.status === 'ACTIVE' && s.entryStatus === 'ENTER').length;
+      const waitCount = all.filter(s => s.status === 'ACTIVE' && s.entryStatus === 'WAIT').length;
+      const invalidCount = all.length - enterCount - waitCount;
+      document.getElementById('qualifiedCount').innerText = all.length;
+      qualifiedSub.innerText = `${enterCount} Enter / ${waitCount} Wait / ${invalidCount} Invalid`;
+
+      const signals = applyFilters(all);
+
+      if (!all.length) {
+        filterBar.classList.add('hidden');
+        emptyState.classList.remove('hidden');
+        signalsList.classList.add('hidden');
+        document.getElementById('emptyStateTitle').innerText = 'NO QUALIFIED ENTRIES';
+        document.getElementById('emptyStateDesc').innerText = 'The scanner evaluated the entire active market universe (4H bias → 1H liquidity → 15M structure/displacement/entry zone → structure-based R:R). Zero pairs currently qualify — that is expected and preferred over forcing mediocre entries.';
+        if (lastDiagnostics) {
+          diagnosticsBox.classList.remove('hidden');
+          diagnosticsBox.innerHTML = `
+            <div>${lastDiagnostics.totalSymbols} pairs scanned</div>
+            <div>${lastDiagnostics.eligible} passed volume/liquidity filter (≥ $2M 24h volume)</div>
+            <div>${lastDiagnostics.passed4H} had valid 4H bias</div>
+            <div>${lastDiagnostics.passed1H} had 1H liquidity confirmation</div>
+            <div>${lastDiagnostics.passedZone} had valid 15M setups (sweep + CHoCH + displacement + entry zone)</div>
+            <div>${lastDiagnostics.passedRR} passed structure-based R:R ≥ 2.5</div>
+            <div>${lastDiagnostics.reachedEntry} currently qualify as ENTER</div>
+          `;
+        }
+        return;
+      }
+
+      filterBar.classList.remove('hidden');
+
+      if (!signals.length) {
+        emptyState.classList.remove('hidden');
+        signalsList.classList.add('hidden');
+        document.getElementById('emptyStateTitle').innerText = 'NO SIGNALS MATCH FILTERS';
+        document.getElementById('emptyStateDesc').innerText = 'Adjust or clear your filters to see active signals.';
+        diagnosticsBox.classList.add('hidden');
+        return;
+      }
+
+      emptyState.classList.add('hidden');
+      signalsList.classList.remove('hidden');
+      signalsList.innerHTML = '';
+
+      signals.forEach((sig, idx) => {
+        if (showTrendLinesMap[sig.symbol] === undefined) showTrendLinesMap[sig.symbol] = true;
+        if (activeTFMap[sig.symbol] === undefined) activeTFMap[sig.symbol] = '15M';
+        if (zoomLevelMap[sig.symbol] === undefined) zoomLevelMap[sig.symbol] = 1.0;
+
+        const rank = idx + 1;
+        let rankBadge = `#${rank}`, rankClass = 'bg-gray-800 text-gray-300 border-gray-700';
+        if (rank === 1) { rankBadge = '🥇 RANK #1'; rankClass = 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-bold'; }
+        else if (rank === 2) { rankBadge = '🥈 RANK #2'; rankClass = 'bg-slate-300/20 text-slate-300 border-slate-400/40 font-bold'; }
+        else if (rank === 3) { rankBadge = '🥉 RANK #3'; rankClass = 'bg-amber-700/20 text-amber-500 border-amber-700/40 font-bold'; }
+
+        let gradeBadge = '🟢 A', gradeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
+        if (sig.score >= 90) { gradeBadge = '🔥 A+'; gradeClass = 'bg-purple-500/20 text-purple-400 border-purple-500/30'; }
+        else if (sig.score < 85) { gradeBadge = '🟡 B+'; gradeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30'; }
+
+        const isLong = sig.direction === 'LONG';
+        const dirBadge = isLong
+          ? `<span class="px-3 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>`
+          : `<span class="px-3 py-1 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>`;
+
+        // ENTRY STATUS BADGE
+        let stateBadge = '';
+        if (sig.status !== 'ACTIVE') {
+          const map = {
+            SL_HIT: ['🔴 SL HIT', 'bg-rose-500/20 text-rose-400 border-rose-500/30'],
+            TP2_HIT: ['🟢 TP2 HIT', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'],
+            INVALIDATED: ['🔴 INVALID', 'bg-rose-500/20 text-rose-400 border-rose-500/30'],
+            EXPIRED: ['🔴 EXPIRED', 'bg-gray-700 text-gray-300 border-gray-600'],
+            MISSED: ['⚫ MISSED', 'bg-gray-800 text-gray-400 border-gray-600']
+          };
+          const [label, cls] = map[sig.status] || [sig.status, 'bg-gray-700 text-gray-300 border-gray-600'];
+          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold ${cls}">${label}</span>`;
+        } else if (sig.entryStatus === 'ENTER') {
+          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-emerald-500/20 text-emerald-400 border-emerald-500/30">🟢 ENTER</span>`;
+        } else if (sig.entryStatus === 'WAIT') {
+          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-amber-500/20 text-amber-400 border-amber-500/30">🟡 WAIT</span>`;
+        } else {
+          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-rose-500/20 text-rose-400 border-rose-500/30">🔴 INVALID</span>`;
+        }
+
+        const fresh = classifyFreshness(sig.createdAt);
+        const tp1Badge = sig.tp1HitAt ? `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">TP1 HIT</span>` : '';
+
+        const whyHTML = (sig.whyChecklist || []).map(w => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> ${w.label}</li>`).join('');
+
+        const invalidationBanner = sig.invalidation ? `
+          <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300">
+            <strong>SIGNAL ${sig.status}</strong><br/>
+            Reason: ${sig.invalidation.reason}<br/>
+            Time: ${new Date(sig.invalidation.time).toLocaleTimeString()} · Price at event: ${formatNumber(sig.invalidation.price)}<br/>
+            Original Score: ${sig.invalidation.originalScore} · Score at event: ${sig.invalidation.currentScore}
+          </div>` : '';
+
+        const rrWarning = sig.rrFeasibility && sig.rrFeasibility.conflict ? `
+          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 text-[11px] text-amber-300 flex items-start gap-2">
+            <i class="fa-solid fa-triangle-exclamation mt-0.5"></i> <span><strong>TARGET CONFLICT:</strong> ${sig.rrFeasibility.note}</span>
+          </div>` : '';
+
+        const scoreTLText = sig.breakdown.scoreTrendLines >= 0 ? `+${sig.breakdown.scoreTrendLines}` : `${sig.breakdown.scoreTrendLines}`;
+
+        const cardHTML = `
+          <div class="bg-[#131722] border border-gray-800 rounded-2xl p-5 md:p-6 shadow-xl flex flex-col gap-6 transition-all hover:border-gray-700 ${sig.status !== 'ACTIVE' ? 'opacity-70' : ''}">
+
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800/80 pb-4">
+              <div class="flex items-center gap-3 flex-wrap">
+                <span class="px-3 py-1.5 rounded-lg border text-xs ${rankClass}">${rankBadge}</span>
+                <h3 class="text-xl font-bold text-white tracking-wide cursor-pointer hover:text-emerald-400" onclick="openSignalDetail('${sig.id}')">${sig.symbol}</h3>
+                ${dirBadge}
+                <span class="px-2.5 py-1 rounded-md border text-xs font-semibold ${gradeClass}">Grade ${gradeBadge}</span>
+                ${stateBadge}
+                ${tp1Badge}
+                <span class="text-[11px] font-semibold ${fresh.cls}">${fresh.label} · ${timeAgo(sig.createdAt)}</span>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <div class="text-right">
+                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">Struct / Entry / Risk</span>
+                  <span class="text-lg font-extrabold text-emerald-400 font-mono">${sig.structuralScore}<span class="text-xs text-gray-500">/</span>${sig.entryScore}<span class="text-xs text-gray-500">/</span>${sig.riskScore}</span>
+                </div>
+                <div class="text-right pl-3 border-l border-gray-800">
+                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">Overall</span>
+                  <span class="text-xl font-extrabold text-white font-mono">${sig.score}<span class="text-xs text-gray-500">/100</span></span>
+                </div>
+                <div class="text-right pl-3 border-l border-gray-800">
+                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">24H Volume</span>
+                  <span class="text-sm font-semibold text-white font-mono">${formatCurrency(sig.quoteVolume)}</span>
+                </div>
+                <button onclick="openSignalDetail('${sig.id}')" class="ml-2 px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs text-gray-300"><i class="fa-solid fa-list-ul"></i> Details</button>
+              </div>
+            </div>
+
+            ${invalidationBanner}
+
+            <div class="bg-[#0B0E14] border border-blue-900/40 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <span class="text-[11px] text-blue-400 uppercase font-medium">Entry Zone</span>
+                <span class="text-sm font-bold font-mono text-blue-300 block mt-0.5">${formatNumber(sig.zone.zoneLow)} – ${formatNumber(sig.zone.zoneHigh)}</span>
+                <span class="text-[10px] text-gray-500">${sig.zone.quality === 'CONFLUENCE' ? 'FVG + OB Confluence' : sig.zone.quality.replace('_', ' ')}</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-gray-400 uppercase font-medium">Ideal Entry</span>
+                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.entryPrice)}</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-gray-400 uppercase font-medium">Current Price</span>
+                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.livePrice || sig.entryPrice)}</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-gray-400 uppercase font-medium">Distance</span>
+                <span class="text-sm font-bold font-mono ${sig.entryDistancePct <= sig.maxDrift ? 'text-emerald-400' : 'text-rose-400'} block mt-0.5">${formatNumber(sig.entryDistancePct, 2)}%</span>
+                <span class="text-[10px] text-gray-500">Max drift: ${formatNumber(sig.maxDrift, 2)}%</span>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+              <div class="bg-[#0B0E14] border border-gray-800/80 rounded-xl p-3">
+                <span class="text-[11px] text-gray-500 uppercase font-medium">ENTRY PRICE</span>
+                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.entryPrice)}</span>
+              </div>
+              <div class="bg-[#0B0E14] border border-rose-900/40 rounded-xl p-3">
+                <span class="text-[11px] text-rose-400 uppercase font-medium">STOP LOSS</span>
+                <span class="text-sm font-bold font-mono text-rose-400 block mt-0.5">${formatNumber(sig.stopLoss)}</span>
+              </div>
+              <div class="bg-[#0B0E14] border border-emerald-900/40 rounded-xl p-3">
+                <span class="text-[11px] text-emerald-400 uppercase font-medium">TARGET TP1</span>
+                <span class="text-sm font-bold font-mono text-emerald-400 block mt-0.5">${formatNumber(sig.tp1)}</span>
+              </div>
+              <div class="bg-[#0B0E14] border border-emerald-900/40 rounded-xl p-3">
+                <span class="text-[11px] text-emerald-400 uppercase font-medium">TARGET TP2</span>
+                <span class="text-sm font-bold font-mono text-emerald-400 block mt-0.5">${formatNumber(sig.tp2)}</span>
+              </div>
+              <div class="bg-[#0B0E14] border border-amber-900/40 rounded-xl p-3 col-span-2 md:col-span-1">
+                <span class="text-[11px] text-amber-400 uppercase font-medium">RISK : REWARD</span>
+                <span class="text-sm font-bold font-mono text-amber-400 block mt-0.5">1 : ${formatNumber(sig.rrRatio, 1)}</span>
+              </div>
+            </div>
+
+            ${rrWarning}
+
+            <div class="bg-[#0B0E14]/60 border border-gray-800/80 rounded-xl p-3 text-xs flex flex-wrap items-center justify-between gap-2">
+              <span class="text-gray-400 font-medium">Score Proof:</span>
+              <div class="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+                <span class="text-emerald-400">4H Bias: +${sig.breakdown.score4H}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">1H Sweep: +${sig.breakdown.score1H}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">15M Sweep: +${sig.breakdown.scoreSweep}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">CHoCH: +${sig.breakdown.scoreChoch}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">Displacement: +${sig.breakdown.scoreDisplacement}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">Zone: +${sig.breakdown.scoreZone}</span><span class="text-gray-600">•</span>
+                <span class="text-emerald-400">TrendLines: ${scoreTLText}</span>
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-3">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-3">
+                  <span class="text-xs font-bold text-gray-400 uppercase">Interactive Chart:</span>
+                  <button id="tl-btn-${sig.symbol}" onclick="toggleTrendLines('${sig.symbol}')" class="px-3 py-1 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all ${showTrendLinesMap[sig.symbol] ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-gray-800 text-gray-400 border-gray-700'}">
+                    <i class="fa-solid fa-chart-line"></i><span>Show Trend Lines</span>
+                  </button>
+                </div>
+                <div class="flex items-center gap-2">
+                  <div class="inline-flex rounded-lg bg-gray-900 border border-gray-800 p-0.5" id="tf-toggle-${sig.symbol}">
+                    <button onclick="switchChartTF('${sig.symbol}', '4H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">4H</button>
+                    <button onclick="switchChartTF('${sig.symbol}', '1H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">1H</button>
+                    <button onclick="switchChartTF('${sig.symbol}', '15M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-emerald-400 bg-gray-800 font-bold transition-all">15M</button>
+                    <button onclick="switchChartTF('${sig.symbol}', '5M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">5M</button>
+                  </div>
+                  <div class="flex items-center gap-1 ml-2">
+                    <button onclick="zoomOut('${sig.symbol}')" title="Zoom Out" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                    <span class="text-xs font-mono text-gray-400 px-1 min-w-[38px] text-center" id="zoom-level-${sig.symbol}">${Math.round(zoomLevelMap[sig.symbol] * 100)}%</span>
+                    <button onclick="zoomIn('${sig.symbol}')" title="Zoom In" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <button onclick="resetZoom('${sig.symbol}')" title="Reset Zoom" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-arrows-left-right"></i></button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="relative w-full h-[360px] bg-[#090C12] border border-gray-800/80 rounded-xl overflow-hidden">
+                <canvas id="canvas-${sig.symbol}" class="w-full h-full block"></canvas>
+              </div>
+
+              <div class="flex items-center justify-between px-3 py-1.5 bg-gray-900/60 border border-gray-800/60 rounded-md text-[10px] text-gray-400">
+                <div class="flex items-center gap-4">
+                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#26a69a]"></span> Bullish Candle</span>
+                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#ef5350]"></span> Bearish Candle</span>
+                  <span id="legend-range-${sig.symbol}">📊 Range: --</span>
+                </div>
+                <div id="legend-count-${sig.symbol}">🕒 Candles Visible: --</div>
+              </div>
+            </div>
+
+            <div class="bg-[#0B0E14] border border-gray-800/80 rounded-xl p-4 flex flex-col gap-2">
+              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-circle-info"></i> Why This Trade?</span>
+              <p class="text-xs text-gray-300 leading-relaxed">${sig.setupReason}</p>
+              <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-gray-400 mt-1">${whyHTML}</ul>
+            </div>
+
+          </div>
+        `;
+        signalsList.insertAdjacentHTML('beforeend', cardHTML);
+      });
+
+      setTimeout(() => { signals.forEach(sig => renderCanvasChart(sig.symbol, activeTFMap[sig.symbol] || '15M')); }, 50);
+    }
+
+    // ============ SIGNAL DETAIL MODAL ============
+    function openSignalDetail(id) {
+      const sig = signalRegistry.get(id);
+      if (!sig) return;
+      const modal = document.getElementById('detailModal');
+      const content = document.getElementById('detailModalContent');
+      const fresh = classifyFreshness(sig.createdAt);
+      content.innerHTML = `
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-bold text-white">${sig.symbol} — ${sig.direction}</h2>
+          <button onclick="closeSignalDetail()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-xs">
+          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+            <h4 class="text-gray-400 font-bold uppercase mb-2">Market</h4>
+            <div class="space-y-1 text-gray-300">
+              <div>Symbol: <span class="font-mono">${sig.symbol}</span></div>
+              <div>Current Price: <span class="font-mono">${formatNumber(sig.livePrice || sig.entryPrice)}</span></div>
+              <div>24H Volume: <span class="font-mono">${formatCurrency(sig.quoteVolume)}</span></div>
+              <div>Direction: <span class="font-mono">${sig.direction}</span></div>
+              <div>BTC Regime: <span class="font-mono">${marketRegime.btc4hBias || '—'} / ${marketRegime.altEnv || '—'}</span></div>
+            </div>
+          </div>
+          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+            <h4 class="text-gray-400 font-bold uppercase mb-2">Structure</h4>
+            <div class="space-y-1 text-gray-300">
+              <div>4H Bias: <span class="font-mono">${sig.direction4H}</span></div>
+              <div>1H Liquidity Sweep + Reclaim: <span class="font-mono">✅</span></div>
+              <div>15M Sweep: <span class="font-mono">✅ @ ${formatNumber(sig.levels.sweepLevel)}</span></div>
+              <div>15M CHoCH/BOS: <span class="font-mono">✅</span></div>
+              <div>15M Displacement: <span class="font-mono">✅</span></div>
+              <div>Entry Zone: <span class="font-mono">${formatNumber(sig.zone.zoneLow)}–${formatNumber(sig.zone.zoneHigh)} (${sig.zone.quality === 'CONFLUENCE' ? 'Confluence' : sig.zone.quality.replace('_', ' ')})</span></div>
+            </div>
+          </div>
+          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+            <h4 class="text-gray-400 font-bold uppercase mb-2">Entry Timing</h4>
+            <div class="space-y-1 text-gray-300">
+              <div>Status: <span class="font-mono">${sig.status === 'ACTIVE' ? sig.entryStatus : sig.status}</span></div>
+              <div>Price in Zone: <span class="font-mono">${sig.entryStatus === 'ENTER' ? '✅' : '❌'}</span></div>
+              <div>Distance from Ideal Entry: <span class="font-mono">${formatNumber(sig.entryDistancePct, 2)}%</span></div>
+              <div class="text-[10px] text-gray-500 mt-1">5M chart available below for optional visual/momentum context — not required for ENTER.</div>
+            </div>
+          </div>
+          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+            <h4 class="text-gray-400 font-bold uppercase mb-2">Risk</h4>
+            <div class="space-y-1 text-gray-300">
+              <div>Ideal Entry: <span class="font-mono">${formatNumber(sig.entryPrice)}</span></div>
+              <div>Current Price: <span class="font-mono">${formatNumber(sig.livePrice || sig.entryPrice)}</span></div>
+              <div>Distance: <span class="font-mono">${formatNumber(sig.entryDistancePct, 2)}% (max ${formatNumber(sig.maxDrift, 2)}%)</span></div>
+              <div>Stop Loss: <span class="font-mono text-rose-400">${formatNumber(sig.stopLoss)}</span></div>
+              <div>TP1: <span class="font-mono text-emerald-400">${formatNumber(sig.tp1)}</span></div>
+              <div>TP2: <span class="font-mono text-emerald-400">${formatNumber(sig.tp2)}</span></div>
+              <div>R:R: <span class="font-mono">1:${formatNumber(sig.rrRatio, 1)}</span></div>
+            </div>
+          </div>
+          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
+            <h4 class="text-gray-400 font-bold uppercase mb-2">Quality</h4>
+            <div class="space-y-1 text-gray-300">
+              <div>Structural Score: <span class="font-mono">${sig.structuralScore}/100</span></div>
+              <div>Entry Score: <span class="font-mono">${sig.entryScore}/100</span></div>
+              <div>Risk Score: <span class="font-mono">${sig.riskScore}/100</span></div>
+              <div>Overall Score: <span class="font-mono">${sig.score}/100</span></div>
+              <div>Grade: <span class="font-mono">${gradeOf(sig.score)}</span></div>
+              <div>Freshness: <span class="font-mono">${fresh.label} (${timeAgo(sig.createdAt)})</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-4 bg-[#0B0E14] border border-gray-800 rounded-lg p-3 text-xs">
+          <h4 class="text-gray-400 font-bold uppercase mb-2">Status</h4>
+          <div class="text-gray-300">${sig.status === 'ACTIVE' ? sig.entryStatus.replace('_', ' ') : sig.status}</div>
+          ${sig.invalidation ? `<div class="mt-1 text-rose-300">${sig.invalidation.reason}</div>` : ''}
+        </div>
+      `;
+      modal.classList.remove('hidden');
+    }
+    function closeSignalDetail() { document.getElementById('detailModal').classList.add('hidden'); }
+
+    // Toggle Trend Lines Overlay
+    function toggleTrendLines(symbol) {
+      showTrendLinesMap[symbol] = !showTrendLinesMap[symbol];
+      const btn = document.getElementById(`tl-btn-${symbol}`);
+      if (btn) btn.className = `px-3 py-1 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all ${showTrendLinesMap[symbol] ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-gray-800 text-gray-400 border-gray-700'}`;
+      renderCanvasChart(symbol, activeTFMap[symbol] || '15M');
+    }
+
+    function switchChartTF(symbol, tf) {
+      activeTFMap[symbol] = tf;
+      const toggleContainer = document.getElementById(`tf-toggle-${symbol}`);
+      if (!toggleContainer) return;
+      toggleContainer.querySelectorAll('button').forEach(btn => {
+        btn.className = btn.innerText === tf ? 'px-2.5 py-1 rounded-md text-xs font-bold text-emerald-400 bg-gray-800 transition-all' : 'px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all';
+      });
+      renderCanvasChart(symbol, tf);
+    }
+
+    function zoomIn(symbol) { zoomLevelMap[symbol] = Math.min(maxZoom, parseFloat(((zoomLevelMap[symbol] || 1.0) * 1.25).toFixed(2))); updateZoomUI(symbol); renderCanvasChart(symbol, activeTFMap[symbol] || '15M'); }
+    function zoomOut(symbol) { zoomLevelMap[symbol] = Math.max(minZoom, parseFloat(((zoomLevelMap[symbol] || 1.0) / 1.25).toFixed(2))); updateZoomUI(symbol); renderCanvasChart(symbol, activeTFMap[symbol] || '15M'); }
+    function resetZoom(symbol) { zoomLevelMap[symbol] = 1.0; updateZoomUI(symbol); renderCanvasChart(symbol, activeTFMap[symbol] || '15M'); }
+    function updateZoomUI(symbol) { const label = document.getElementById(`zoom-level-${symbol}`); if (label) label.innerText = `${Math.round((zoomLevelMap[symbol] || 1.0) * 100)}%`; }
+
+    // --- CANDLESTICK DRAWING ENGINE (unchanged core rendering) ---
+    function drawCandle(ctx, x, candleWidth, highY, lowY, openY, closeY, isBullish) {
+      const fillVal = isBullish ? COLORS.BULLISH : COLORS.BEARISH;
+      const borderVal = isBullish ? COLORS.BULLISH_BORDER : COLORS.BEARISH_BORDER;
+      const wickVal = isBullish ? COLORS.BULLISH_WICK : COLORS.BEARISH_WICK;
+      const centerX = Math.floor(x + candleWidth / 2) + 0.5;
+      const padding = Math.max(1, candleWidth * 0.1);
+      const bodyWidth = Math.max(1, candleWidth - padding * 2);
+      const bodyX = Math.floor(x + padding) + 0.5;
+      const bodyTop = Math.floor(Math.min(openY, closeY));
+      const bodyBottom = Math.floor(Math.max(openY, closeY));
+      const bodyHeight = Math.max(1, bodyBottom - bodyTop);
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(centerX, Math.floor(highY));
+      ctx.lineTo(centerX, Math.floor(lowY));
+      ctx.strokeStyle = wickVal;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.fillStyle = fillVal;
+      ctx.fillRect(bodyX, bodyTop, bodyWidth, bodyHeight);
+      if (candleWidth > 3) { ctx.strokeStyle = borderVal; ctx.lineWidth = 1; ctx.strokeRect(bodyX, bodyTop, bodyWidth, bodyHeight); }
+      ctx.restore();
+    }
+
+    function drawPriceScale(ctx, width, height, minPrice, maxPrice, priceToY) {
+      const steps = 6;
+      const stepSize = (maxPrice - minPrice) / steps;
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillStyle = COLORS.TEXT;
+      for (let i = 0; i <= steps; i++) {
+        const price = minPrice + (stepSize * i);
+        const y = priceToY(price);
+        if (y >= 10 && y <= height - 20) {
+          ctx.fillText(formatNumber(price), width - 8, y + 3);
+          ctx.strokeStyle = COLORS.GRID;
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width - 55, y); ctx.stroke();
+        }
+      }
+      ctx.strokeStyle = COLORS.AXIS_LINE;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(width - 55, 0); ctx.lineTo(width - 55, height); ctx.stroke();
+    }
+
+    function drawTimeLabels(ctx, width, height, visibleCandles, candleWidth) {
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = COLORS.TEXT;
+      const step = Math.max(1, Math.floor(visibleCandles.length / 6));
+      for (let i = 0; i < visibleCandles.length; i += step) {
+        const candle = visibleCandles[i];
+        const x = i * candleWidth + candleWidth / 2;
+        if (x < width - 65) {
+          const dt = new Date(candle.time);
+          const timeStr = dt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+          const dateStr = dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          ctx.fillText(`${dateStr} ${timeStr}`, x, height - 6);
+        }
+      }
+      ctx.strokeStyle = COLORS.AXIS_LINE;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, height - 18); ctx.lineTo(width, height - 18); ctx.stroke();
+    }
+
+    function drawTrendLines(ctx, trendLines, visibleCandles, width, height, priceToY, candleWidth) {
+      if (!trendLines || !trendLines.length || !visibleCandles.length) return;
+      let supCount = 0, resCount = 0, brokenCount = 0;
+      const firstCandleTime = visibleCandles[0].time;
+      const lastCandleTime = visibleCandles[visibleCandles.length - 1].time;
+      const timePerCandle = visibleCandles.length > 1 ? (lastCandleTime - firstCandleTime) / (visibleCandles.length - 1) : 1;
+      const timeToX = (t) => ((t - firstCandleTime) / timePerCandle) * candleWidth + candleWidth / 2;
+
+      trendLines.forEach(tl => {
+        if (tl.broken) brokenCount++; else if (tl.type === 'support') supCount++; else if (tl.type === 'resistance') resCount++;
+        const x1 = timeToX(tl.p1Time), x2 = timeToX(tl.p2Time);
+        const dx = x2 - x1;
+        if (Math.abs(dx) < 0.001) return;
+        const y1 = priceToY(tl.p1.price), y2 = priceToY(tl.p2.price);
+        const pixelSlope = (y2 - y1) / dx;
+        const startX = Math.max(0, x1), startY = y1 + pixelSlope * (startX - x1);
+        const endX = width, endY = y1 + pixelSlope * (endX - x1);
+        ctx.save();
+        if (tl.type === 'support') { ctx.strokeStyle = tl.broken ? 'rgba(38, 166, 154, 0.4)' : 'rgba(38, 166, 154, 0.9)'; ctx.fillStyle = '#26a69a'; }
+        else { ctx.strokeStyle = tl.broken ? 'rgba(239, 83, 80, 0.4)' : 'rgba(239, 83, 80, 0.9)'; ctx.fillStyle = '#ef5350'; }
+        ctx.lineWidth = (tl.classification.includes('Major') || tl.classification.includes('Dynamic')) ? 2 : 1.25;
+        ctx.setLineDash(tl.broken ? [4, 4] : []);
+        ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(endX, endY); ctx.stroke();
+        if (tl.classification.includes('Major') && !tl.broken) { ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 6; ctx.stroke(); ctx.shadowBlur = 0; }
+        tl.touchPoints.forEach(tp => {
+          const tx = timeToX(tp.time || tp.candle.time);
+          if (tx >= 0 && tx <= width) {
+            const ty = priceToY(tp.price);
+            ctx.beginPath(); ctx.arc(tx, ty, 3.5, 0, 2 * Math.PI); ctx.fill();
+            ctx.strokeStyle = '#090C12'; ctx.lineWidth = 1; ctx.stroke();
+          }
+        });
+        ctx.font = 'bold 9px monospace';
+        const labelText = `${tl.dirLabel} ${tl.type === 'support' ? 'SUP' : 'RES'} (${tl.touches}x)`;
+        ctx.fillText(labelText, Math.min(width - 120, endX - 100), Math.max(15, Math.min(height - 25, endY - 6)));
+        ctx.restore();
+      });
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(11, 14, 20, 0.85)';
+      ctx.fillRect(width - 220, 8, 155, 42);
+      ctx.strokeStyle = '#232936';
+      ctx.strokeRect(width - 220, 8, 155, 42);
+      ctx.font = '10px monospace';
+      ctx.fillStyle = '#26a69a'; ctx.fillText(`↗ SUP: ${supCount}x`, width - 210, 24);
+      ctx.fillStyle = '#ef5350'; ctx.fillText(`↘ RES: ${resCount}x`, width - 210, 38);
+      ctx.fillStyle = '#9ca3af'; ctx.fillText(`Broken: ${brokenCount}x`, width - 140, 24);
+      ctx.restore();
+    }
+
+    // Draw the most recent Order Block + FVG zones on the 15M chart (kept minimal to avoid clutter)
+    function drawZones(ctx, sig, tf, visibleCandles, priceToY, chartAreaWidth) {
+      if (tf !== '15M') return;
+      const lastOB = (sig.obs15M || []).slice(-2);
+      lastOB.forEach(ob => {
+        const yTop = priceToY(ob.high), yBottom = priceToY(ob.low);
+        ctx.fillStyle = ob.type === 'BULLISH' ? COLORS.OB_BULL : COLORS.OB_BEAR;
+        ctx.fillRect(0, Math.min(yTop, yBottom), chartAreaWidth, Math.abs(yBottom - yTop));
+      });
+      const lastFVG = (sig.fvgs15M || []).slice(-2);
+      lastFVG.forEach(f => {
+        const yTop = priceToY(f.top), yBottom = priceToY(f.bottom);
+        ctx.fillStyle = f.type === 'BULLISH' ? COLORS.FVG_BULL : COLORS.FVG_BEAR;
+        ctx.fillRect(0, Math.min(yTop, yBottom), chartAreaWidth, Math.abs(yBottom - yTop));
+      });
+    }
+
+    // --- CANVAS CANDLESTICK RENDER ENGINE ---
+    function renderCanvasChart(symbol, tf) {
+      const sig = signalRegistry.get(`${symbol}_LONG`) || signalRegistry.get(`${symbol}_SHORT`);
+      if (!sig) return;
+      const canvas = document.getElementById(`canvas-${symbol}`);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
+      const width = rect.width, height = rect.height;
+
+      const klineObj = sig.candles[tf] || { candles: [], timeRange: '1 day' };
+      const totalCandles = klineObj.candles || [];
+      if (!totalCandles.length) return;
+
+      ctx.fillStyle = '#090C12';
+      ctx.fillRect(0, 0, width, height);
+
+      const zoom = zoomLevelMap[symbol] || 1.0;
+      const baseVisible = 45;
+      const visibleCount = Math.min(totalCandles.length, Math.max(10, Math.round(baseVisible / zoom)));
+      const visibleCandles = totalCandles.slice(-visibleCount);
+
+      const rangeEl = document.getElementById(`legend-range-${symbol}`);
+      if (rangeEl) rangeEl.innerText = `📊 Range: ${klineObj.timeRange}`;
+      const countEl = document.getElementById(`legend-count-${symbol}`);
+      if (countEl) countEl.innerText = `🕒 Candles Visible: ${visibleCandles.length} / ${totalCandles.length}`;
+
+      let minPrice = Infinity, maxPrice = -Infinity, maxVol = 0;
+      visibleCandles.forEach(c => { if (c.low < minPrice) minPrice = c.low; if (c.high > maxPrice) maxPrice = c.high; if (c.volume > maxVol) maxVol = c.volume; });
+      const padding = (maxPrice - minPrice) * 0.12 || 1;
+      minPrice -= padding; maxPrice += padding;
+      const priceToY = (price) => (height - 20) - ((price - minPrice) / (maxPrice - minPrice)) * (height - 35);
+      const chartAreaWidth = width - 55;
+      const candleWidth = chartAreaWidth / visibleCandles.length;
+
+      drawPriceScale(ctx, width, height, minPrice, maxPrice, priceToY);
+      drawTimeLabels(ctx, width, height, visibleCandles, candleWidth);
+      drawZones(ctx, sig, tf, visibleCandles, priceToY, chartAreaWidth);
+
+      if (maxVol > 0) {
+        const maxVolHeight = height * 0.18;
+        visibleCandles.forEach((c, idx) => {
+          const x = idx * candleWidth;
+          const volH = (c.volume / maxVol) * maxVolHeight;
+          const y = (height - 20) - volH;
+          const isBullish = c.close >= c.open;
+          ctx.fillStyle = isBullish ? COLORS.VOL_BULL : COLORS.VOL_BEAR;
+          ctx.fillRect(x + candleWidth * 0.15, y, candleWidth * 0.7, volH);
+        });
+      }
+
+      if (showTrendLinesMap[symbol]) {
+        const tfSwings = findSwingPoints(visibleCandles, 2, 2);
+        const dynamicTfTrendLines = detectTrendLines(visibleCandles, tfSwings.swingHighs, tfSwings.swingLows, 2);
+        drawTrendLines(ctx, dynamicTfTrendLines, visibleCandles, chartAreaWidth, height, priceToY, candleWidth);
+      }
+
+      visibleCandles.forEach((c, idx) => {
+        const x = idx * candleWidth;
+        const openY = priceToY(c.open), closeY = priceToY(c.close), highY = priceToY(c.high), lowY = priceToY(c.low);
+        drawCandle(ctx, x, candleWidth, highY, lowY, openY, closeY, c.close >= c.open);
+      });
+
+      ctx.font = '10px monospace';
+      const entryY = priceToY(sig.entryPrice);
+      if (entryY >= 0 && entryY <= height - 20) {
+        ctx.strokeStyle = '#3B82F6'; ctx.setLineDash([4, 4]);
+        ctx.beginPath(); ctx.moveTo(0, entryY); ctx.lineTo(chartAreaWidth, entryY); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#3B82F6'; ctx.fillText(`ENTRY: ${formatNumber(sig.entryPrice)}`, chartAreaWidth - 110, entryY - 4);
+      }
+      const slY = priceToY(sig.stopLoss);
+      if (slY >= 0 && slY <= height - 20) {
+        ctx.strokeStyle = '#ef5350'; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(0, slY); ctx.lineTo(chartAreaWidth, slY); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#ef5350'; ctx.fillText(`SL: ${formatNumber(sig.stopLoss)}`, chartAreaWidth - 90, slY - 4);
+      }
+      const tp1Y = priceToY(sig.tp1);
+      if (tp1Y >= 0 && tp1Y <= height - 20) {
+        ctx.strokeStyle = '#26a69a'; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(0, tp1Y); ctx.lineTo(chartAreaWidth, tp1Y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#26a69a'; ctx.fillText(`TP1: ${formatNumber(sig.tp1)}`, chartAreaWidth - 90, tp1Y - 4);
+      }
+      const tp2Y = priceToY(sig.tp2);
+      if (tp2Y >= 0 && tp2Y <= height - 20) {
+        ctx.strokeStyle = '#059669'; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(0, tp2Y); ctx.lineTo(chartAreaWidth, tp2Y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#059669'; ctx.fillText(`TP2: ${formatNumber(sig.tp2)}`, chartAreaWidth - 90, tp2Y - 4);
+      }
+      if (tf === '15M' && sig.levels.sweepLevel) {
+        const sweepY = priceToY(sig.levels.sweepLevel);
+        if (sweepY >= 0 && sweepY <= height - 20) {
+          ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(0, sweepY); ctx.lineTo(chartAreaWidth, sweepY); ctx.stroke();
+          ctx.fillStyle = '#f59e0b'; ctx.fillText(`SWEEP LEVEL: ${formatNumber(sig.levels.sweepLevel)}`, 15, sweepY - 5);
+        }
+      }
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText(`${symbol} — ${tf} CANDLES`, 15, 25);
+    }
+
+    // Debounced Resize Listener
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => { signalRegistry.forEach(sig => renderCanvasChart(sig.symbol, activeTFMap[sig.symbol] || '15M')); }, 200);
+    });
+
+    // Initial render of empty state / history on load
+    renderHistoryPanel();
+    renderScanHealth();
+
+    // ============ ENTRY ALERTS (WEB PUSH) ============
+    // This layer only SUBSCRIBES the device and reflects status in the UI. The actual
+    // decision of when to notify is made by the backend's scheduled function, which runs
+    // the SAME signal engine — this page never generates or simulates its own alerts.
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+      return outputArray;
+    }
+
+    function setAlertUIState(state) {
+      const statusText = document.getElementById('alertStatusText');
+      const enableBtn = document.getElementById('enableAlertsBtn');
+      const testBtn = document.getElementById('testAlertBtn');
+      const deniedHelp = document.getElementById('alertDeniedHelp');
+      if (state === 'ON') {
+        statusText.textContent = '🟢 Entry Alerts: ON';
+        enableBtn.classList.add('hidden');
+        testBtn.classList.remove('hidden');
+        deniedHelp.classList.add('hidden');
+      } else if (state === 'DENIED') {
+        statusText.textContent = '🔴 Notification permission denied';
+        enableBtn.classList.add('hidden');
+        testBtn.classList.add('hidden');
+        deniedHelp.classList.remove('hidden');
+      } else {
+        statusText.textContent = '🔕 Entry Alerts: OFF — get an Android notification the moment a real setup reaches ENTER';
+        enableBtn.classList.remove('hidden');
+        testBtn.classList.add('hidden');
+        deniedHelp.classList.add('hidden');
+      }
+    }
+
+    async function enableEntryAlerts() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Push notifications are not supported in this browser.');
+        return;
+      }
+      if (Notification.permission === 'denied') {
+        setAlertUIState('DENIED');
+        return;
+      }
+
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        setAlertUIState(permission === 'denied' ? 'DENIED' : 'OFF');
+        return;
+      }
+
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+        await navigator.serviceWorker.ready;
+        let subscription = await reg.pushManager.getSubscription();
+        if (!subscription) {
+          subscription = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+          });
+        }
+
+        const res = await fetch('/api/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subscription })
+        });
+        if (!res.ok) throw new Error('Backend rejected subscription');
+
+        localStorage.setItem('ppsAlertsEnabled', 'true');
+        setAlertUIState('ON');
+      } catch (err) {
+        alert('Could not enable entry alerts: ' + err.message);
+        setAlertUIState('OFF');
+      }
+    }
+
+    async function sendTestNotification() {
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        const subscription = await reg.pushManager.getSubscription();
+        if (!subscription) { setAlertUIState('OFF'); return; }
+        const res = await fetch('/api/test-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: subscription.endpoint })
+        });
+        if (res.status === 410) { setAlertUIState('OFF'); localStorage.removeItem('ppsAlertsEnabled'); alert('Your subscription expired — please enable alerts again.'); return; }
+        if (!res.ok) throw new Error('Test notification failed');
+      } catch (err) {
+        alert('Could not send test notification: ' + err.message);
+      }
+    }
+
+    async function restoreAlertStateOnLoad() {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+      if (Notification.permission === 'denied') { setAlertUIState('DENIED'); return; }
+      if (Notification.permission !== 'granted') { setAlertUIState('OFF'); return; }
+      try {
+        const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+        const subscription = reg ? await reg.pushManager.getSubscription() : null;
+        setAlertUIState(subscription ? 'ON' : 'OFF');
+      } catch (err) {
+        setAlertUIState('OFF');
+      }
+    }
+    restoreAlertStateOnLoad();
+
+    // ============ BACKGROUND ENGINE INSIGHTS (regime / session / adaptive / funnel) ============
+    // Polls the same backend that gates Android push notifications, so this
+    // panel and the notifications are always describing the same reality.
+    function regimeBadgeClass(state) {
+      if (state === 'BULLISH') return 'text-emerald-400';
+      if (state === 'BULLISH_WEAKENING') return 'text-amber-400';
+      if (state === 'FLIP_RISK_HIGH') return 'text-orange-400';
+      if (state === 'BEARISH') return 'text-rose-400';
+      return 'text-gray-400';
+    }
+
+    async function refreshBackgroundInsights() {
+      try {
+        const res = await fetch('/api/insights');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const sessionBadge = document.getElementById('sessionBadge');
+        if (data.session) sessionBadge.textContent = `${data.session.label} · EAT ${data.session.eat}`;
+
+        const regimeLabelEl = document.getElementById('altRegimeLabel');
+        const regimeDetailEl = document.getElementById('altRegimeDetail');
+        const regimeTransitionEl = document.getElementById('altRegimeTransitioning');
+        if (data.regime) {
+          regimeLabelEl.textContent = data.regime.label;
+          regimeLabelEl.className = 'text-sm font-bold ' + regimeBadgeClass(data.regime.state);
+          const s = data.regime.snapshot || {};
+          regimeDetailEl.textContent = `BTC 4H: ${s.btcBias || '—'} · ETH 4H: ${s.ethBias || '—'} · Bullish breadth: ${s.bullishPct ?? '—'}%`;
+          regimeTransitionEl.classList.toggle('hidden', data.regime.confirmed !== false);
+        } else {
+          regimeLabelEl.textContent = 'Not yet evaluated (background scan pending)';
+        }
+
+        const adaptiveStageEl = document.getElementById('adaptiveStage');
+        const adaptiveDetailEl = document.getElementById('adaptiveDetail');
+        if (data.insights) {
+          const stageLabel = { COLLECTING_DATA: '🔵 COLLECTING DATA', LIMITED_LEARNING: '🟡 LIMITED LEARNING', LEARNING_ACTIVE: '🟢 ACTIVE' }[data.insights.stage] || data.insights.stage;
+          adaptiveStageEl.textContent = stageLabel;
+          const lines = [
+            `ENTER trades recorded: ${data.insights.enterTradesRecorded} · Resolved: ${data.insights.resolved}`,
+          ];
+          if (data.insights.winRatePct !== null) lines.push(`Win rate: ${data.insights.winRatePct}% (${data.insights.winning}W / ${data.insights.losing}L)`);
+          if (data.insights.bestPerformingRegime) lines.push(`Best regime: ${data.insights.bestPerformingRegime}`);
+          if (data.insights.bestScoreRange) lines.push(`Best score range: ${data.insights.bestScoreRange}`);
+          adaptiveDetailEl.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+        } else {
+          adaptiveStageEl.textContent = '—';
+        }
+
+        const funnelEl = document.getElementById('whyNoTradeFunnel');
+        if (data.diagnostics) {
+          const d = data.diagnostics;
+          funnelEl.innerHTML = `
+            ${d.universeSize} pairs scanned (top volume watchlist)<br>
+            ${d.valid4H} had a valid 4H bias<br>
+            ${d.valid1H} had 1H liquidity confirmation<br>
+            ${d.zoneFormed} had a valid 15M entry zone<br>
+            ${d.reachedEnterZone} reached WAIT/ENTER stage<br>
+            ${d.currentlyEnter} currently qualify as ENTER<br>
+            <span class="text-gray-600">Last background scan: ${new Date(d.timestamp).toLocaleTimeString()}</span>`;
+        }
+      } catch (err) {
+        // Background insights are supplementary — a fetch failure here must
+        // never disrupt the live in-browser scanner above.
+      }
+    }
+    refreshBackgroundInsights();
+    setInterval(refreshBackgroundInsights, 60000);
+
+    // ============ NOTIFICATION DEEP LINK (?signal=ID) ============
+    async function checkNotificationDeepLink() {
+      const params = new URLSearchParams(window.location.search);
+      const signalId = params.get('signal');
+      if (!signalId) return;
+
+      const banner = document.getElementById('notifSignalBanner');
+      banner.classList.remove('hidden');
+      banner.innerHTML = '<span class="text-gray-400">Checking live status for this signal…</span>';
+
+      try {
+        const res = await fetch(`/api/get-signal?id=${encodeURIComponent(signalId)}`);
+        if (!res.ok) {
+          banner.innerHTML = '<span class="text-rose-400">⚠️ This signal could not be found — it may be too old.</span>';
+          return;
+        }
+        const data = await res.json();
+        const snap = data.snapshot;
+        const live = data.live || {};
+        const stillEnter = live.entryStatus === 'ENTER';
+
+        banner.innerHTML = `
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="font-bold text-white mb-1">${snap.symbol} — ${snap.direction}</div>
+              <div class="text-xs text-gray-400 space-y-0.5">
+                <div>Notified Entry: <span class="font-mono text-white">${formatNumber(snap.entryPrice)}</span> · SL: <span class="font-mono text-rose-400">${formatNumber(snap.stopLoss)}</span> · TP1: <span class="font-mono text-emerald-400">${formatNumber(snap.tp1)}</span> · TP2: <span class="font-mono text-emerald-400">${formatNumber(snap.tp2)}</span> · Score: ${snap.score}</div>
+                <div>Current Price: <span class="font-mono text-white">${live.currentPrice ? formatNumber(live.currentPrice) : '--'}</span></div>
+              </div>
+            </div>
+            <div class="text-right">
+              ${stillEnter
+                ? `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-emerald-500/20 text-emerald-400 border-emerald-500/30">🟢 STILL ENTER</span>`
+                : `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-amber-500/20 text-amber-400 border-amber-500/30">⚠️ SIGNAL STATUS CHANGED</span><div class="text-[11px] text-gray-500 mt-1">${(live.entryStatus || 'UNKNOWN').replace('_',' ')}${live.note ? ' — ' + live.note : ''}</div>`
+              }
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        banner.innerHTML = '<span class="text-rose-400">⚠️ Could not reach the backend to check this signal\'s live status.</span>';
+      }
+    }
+    checkNotificationDeepLink();
+  </script>
+</body>
+</html>

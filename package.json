@@ -1,0 +1,9 @@
+{
+  "name": "promise-pro-scanner",
+  "version": "11.0.0",
+  "private": true,
+  "description": "PROMISE PRO SCANNER — real-market 4H/1H/15M signal engine, market-regime awareness, adaptive learning, and Android Web Push entry alerts. Deployed on Vercel.",
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
+}
