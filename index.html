@@ -4,6 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>PROMISE PRO SCANNER — Real-Market Day-Trading Engine</title>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0B0E14">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="PromisePro">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="icon" href="/icon-192.png" type="image/png">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -233,6 +241,19 @@
       <p class="text-[10px] text-gray-600 mt-2">All figures above are real — from stored scan/trade history. Regime changes require two consecutive confirming scans before display updates (avoids reacting to a single candle). Adaptive weights only begin adjusting past 50 resolved trades and are capped/versioned with automatic rollback.</p>
     </div>
 
+    <!-- INSTALL AS APP (PWA) -->
+    <div id="installBanner" class="hidden bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 flex items-center justify-between gap-3">
+      <div>
+        <h3 class="text-xs font-bold text-blue-300 uppercase tracking-wider mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-mobile-screen"></i> Install as App
+        </h3>
+        <p class="text-xs text-gray-400">Add Promise Pro Scanner to your home screen — opens like a real app, no browser bar.</p>
+      </div>
+      <button id="installAppBtn" onclick="installApp()" class="shrink-0 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white font-bold text-xs">
+        📲 Install
+      </button>
+    </div>
+
     <!-- ENTRY ALERTS (WEB PUSH) -->
     <div class="bg-[#131722] border border-gray-800/80 rounded-xl p-4">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -334,7 +355,8 @@
       </div>
 
       <!-- SIGNALS CARDS GRID -->
-      <div id="signalsList" class="hidden flex flex-col gap-6"></div>
+      <div id="activeEnterBanner" class="hidden bg-emerald-500/15 border border-emerald-500/40 rounded-xl p-3 text-center font-bold text-emerald-400 text-sm"></div>
+    <div id="signalsList" class="hidden flex flex-col gap-2"></div>
     </div>
 
     <!-- SIGNAL HISTORY / PERFORMANCE -->
@@ -411,7 +433,7 @@
 
     // Public VAPID key — safe to expose in the browser. The matching PRIVATE key lives only
     // in the backend's environment variables and is never sent to the client.
-    const VAPID_PUBLIC_KEY = 'BDfUS4BCIqBOyG-yh2FGL9uEn62nXwBp5q1WCGAaE4v10m5jCsHW6rdyDsR3u31iAUormx3-y8Sw8Vjz7DNeCDM';
+    const VAPID_PUBLIC_KEY = 'BOxXx3dTwYLPejxa6-mVBBYzs7J8WCqXbW4swUl1YKO4acqzi8BQXyLkuvZ6Ca7b26Ao46CHBMTYXSKnNI8zWWE';
 
     // COLOR CONSTANTS (TradingView Dark Theme Pro)
     const COLORS = {
@@ -1515,9 +1537,24 @@
       const diagnosticsBox = document.getElementById('diagnosticsBox');
       const qualifiedSub = document.getElementById('qualifiedSub');
 
+      // Lifecycle priority for sorting (spec: ENTER always at top, then WAIT, then other
+      // active states, then closed/invalid — never bury an ENTER under WAIT/FRESH signals).
+      function lifecycleRank(sig) {
+        if (sig.status === 'ACTIVE') {
+          if (sig.entryStatus === 'ENTER') return 0;
+          if (sig.entryStatus === 'WAIT') return 1;
+          return 2; // other active (fresh/aging/invalid-active)
+        }
+        return 3; // closed: SL_HIT/TP2_HIT/INVALIDATED/EXPIRED/MISSED
+      }
+
       const all = Array.from(signalRegistry.values()).sort((a, b) => {
-        if (a.status === 'ACTIVE' && b.status !== 'ACTIVE') return -1;
-        if (a.status !== 'ACTIVE' && b.status === 'ACTIVE') return 1;
+        const rankDiff = lifecycleRank(a) - lifecycleRank(b);
+        if (rankDiff !== 0) return rankDiff;
+        // Within the same lifecycle tier: freshest first, then higher score.
+        if (lifecycleRank(a) <= 1) {
+          if (b.createdAt !== a.createdAt) return b.createdAt - a.createdAt;
+        }
         if (b.score !== a.score) return b.score - a.score;
         return b.rrRatio - a.rrRatio;
       });
@@ -1527,6 +1564,14 @@
       const invalidCount = all.length - enterCount - waitCount;
       document.getElementById('qualifiedCount').innerText = all.length;
       qualifiedSub.innerText = `${enterCount} Enter / ${waitCount} Wait / ${invalidCount} Invalid`;
+
+      const enterBanner = document.getElementById('activeEnterBanner');
+      if (enterCount > 0) {
+        enterBanner.classList.remove('hidden');
+        enterBanner.innerHTML = `🚨 ${enterCount} ACTIVE ENTER TRADE${enterCount > 1 ? 'S' : ''}`;
+      } else {
+        enterBanner.classList.add('hidden');
+      }
 
       const signals = applyFilters(all);
 
@@ -1566,231 +1611,131 @@
       signalsList.classList.remove('hidden');
       signalsList.innerHTML = '';
 
-      signals.forEach((sig, idx) => {
+      // ============ COMPACT SIGNAL LIST (spec: mobile-first, ENTER visually obvious,
+      // minimal info per row, full analysis on tap) ============
+      signals.forEach((sig) => {
         if (showTrendLinesMap[sig.symbol] === undefined) showTrendLinesMap[sig.symbol] = true;
         if (activeTFMap[sig.symbol] === undefined) activeTFMap[sig.symbol] = '15M';
         if (zoomLevelMap[sig.symbol] === undefined) zoomLevelMap[sig.symbol] = 1.0;
 
-        const rank = idx + 1;
-        let rankBadge = `#${rank}`, rankClass = 'bg-gray-800 text-gray-300 border-gray-700';
-        if (rank === 1) { rankBadge = '🥇 RANK #1'; rankClass = 'bg-amber-500/20 text-amber-400 border-amber-500/40 font-bold'; }
-        else if (rank === 2) { rankBadge = '🥈 RANK #2'; rankClass = 'bg-slate-300/20 text-slate-300 border-slate-400/40 font-bold'; }
-        else if (rank === 3) { rankBadge = '🥉 RANK #3'; rankClass = 'bg-amber-700/20 text-amber-500 border-amber-700/40 font-bold'; }
-
-        let gradeBadge = '🟢 A', gradeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-        if (sig.score >= 90) { gradeBadge = '🔥 A+'; gradeClass = 'bg-purple-500/20 text-purple-400 border-purple-500/30'; }
-        else if (sig.score < 85) { gradeBadge = '🟡 B+'; gradeClass = 'bg-amber-500/20 text-amber-400 border-amber-500/30'; }
-
         const isLong = sig.direction === 'LONG';
-        const dirBadge = isLong
-          ? `<span class="px-3 py-1 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-trend-up"></i> LONG</span>`
-          : `<span class="px-3 py-1 rounded-md bg-rose-500/20 text-rose-400 border border-rose-500/30 font-bold text-xs flex items-center gap-1"><i class="fa-solid fa-arrow-trend-down"></i> SHORT</span>`;
+        const dirIcon = isLong ? 'fa-arrow-trend-up text-emerald-400' : 'fa-arrow-trend-down text-rose-400';
 
-        // ENTRY STATUS BADGE
-        let stateBadge = '';
+        let stateLabel = '', stateCls = '', rowCls = 'border-gray-800 bg-[#131722]';
         if (sig.status !== 'ACTIVE') {
           const map = {
-            SL_HIT: ['🔴 SL HIT', 'bg-rose-500/20 text-rose-400 border-rose-500/30'],
-            TP2_HIT: ['🟢 TP2 HIT', 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'],
-            INVALIDATED: ['🔴 INVALID', 'bg-rose-500/20 text-rose-400 border-rose-500/30'],
-            EXPIRED: ['🔴 EXPIRED', 'bg-gray-700 text-gray-300 border-gray-600'],
-            MISSED: ['⚫ MISSED', 'bg-gray-800 text-gray-400 border-gray-600']
+            SL_HIT: ['🔴 SL HIT', 'text-rose-400'],
+            TP2_HIT: ['🟢 TP2 HIT', 'text-emerald-400'],
+            INVALIDATED: ['🔴 INVALID', 'text-rose-400'],
+            EXPIRED: ['⚪ EXPIRED', 'text-gray-400'],
+            MISSED: ['⚫ MISSED', 'text-gray-500']
           };
-          const [label, cls] = map[sig.status] || [sig.status, 'bg-gray-700 text-gray-300 border-gray-600'];
-          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold ${cls}">${label}</span>`;
+          const [label, cls] = map[sig.status] || [sig.status, 'text-gray-400'];
+          stateLabel = label; stateCls = cls; rowCls = 'border-gray-800/60 bg-[#131722]/50 opacity-60';
         } else if (sig.entryStatus === 'ENTER') {
-          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-emerald-500/20 text-emerald-400 border-emerald-500/30">🟢 ENTER</span>`;
+          stateLabel = '🟢 ENTER'; stateCls = 'text-emerald-400 font-extrabold';
+          rowCls = 'border-emerald-500/50 bg-emerald-500/10';
         } else if (sig.entryStatus === 'WAIT') {
-          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-amber-500/20 text-amber-400 border-amber-500/30">🟡 WAIT</span>`;
+          stateLabel = '🟡 WAIT'; stateCls = 'text-amber-400 font-bold';
+          rowCls = 'border-amber-500/30 bg-[#131722]';
         } else {
-          stateBadge = `<span class="px-2.5 py-1 rounded-md border text-xs font-bold bg-rose-500/20 text-rose-400 border-rose-500/30">🔴 INVALID</span>`;
+          stateLabel = '🔴 INVALID'; stateCls = 'text-rose-400';
+          rowCls = 'border-rose-500/20 bg-[#131722]/70';
         }
 
         const fresh = classifyFreshness(sig.createdAt);
-        const tp1Badge = sig.tp1HitAt ? `<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-bold">TP1 HIT</span>` : '';
+        const priceLine = sig.entryStatus === 'ENTER' || sig.status !== 'ACTIVE'
+          ? `Entry ${formatNumber(sig.entryPrice)}`
+          : `Zone ${formatNumber(sig.zone.zoneLow)}–${formatNumber(sig.zone.zoneHigh)}`;
 
-        const whyHTML = (sig.whyChecklist || []).map(w => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> ${w.label}</li>`).join('');
-
-        const invalidationBanner = sig.invalidation ? `
-          <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300">
-            <strong>SIGNAL ${sig.status}</strong><br/>
-            Reason: ${sig.invalidation.reason}<br/>
-            Time: ${new Date(sig.invalidation.time).toLocaleTimeString()} · Price at event: ${formatNumber(sig.invalidation.price)}<br/>
-            Original Score: ${sig.invalidation.originalScore} · Score at event: ${sig.invalidation.currentScore}
-          </div>` : '';
-
-        const rrWarning = sig.rrFeasibility && sig.rrFeasibility.conflict ? `
-          <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 text-[11px] text-amber-300 flex items-start gap-2">
-            <i class="fa-solid fa-triangle-exclamation mt-0.5"></i> <span><strong>TARGET CONFLICT:</strong> ${sig.rrFeasibility.note}</span>
-          </div>` : '';
-
-        const scoreTLText = sig.breakdown.scoreTrendLines >= 0 ? `+${sig.breakdown.scoreTrendLines}` : `${sig.breakdown.scoreTrendLines}`;
-
-        const cardHTML = `
-          <div class="bg-[#131722] border border-gray-800 rounded-2xl p-5 md:p-6 shadow-xl flex flex-col gap-6 transition-all hover:border-gray-700 ${sig.status !== 'ACTIVE' ? 'opacity-70' : ''}">
-
-            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-800/80 pb-4">
-              <div class="flex items-center gap-3 flex-wrap">
-                <span class="px-3 py-1.5 rounded-lg border text-xs ${rankClass}">${rankBadge}</span>
-                <h3 class="text-xl font-bold text-white tracking-wide cursor-pointer hover:text-emerald-400" onclick="openSignalDetail('${sig.id}')">${sig.symbol}</h3>
-                ${dirBadge}
-                <span class="px-2.5 py-1 rounded-md border text-xs font-semibold ${gradeClass}">Grade ${gradeBadge}</span>
-                ${stateBadge}
-                ${tp1Badge}
-                <span class="text-[11px] font-semibold ${fresh.cls}">${fresh.label} · ${timeAgo(sig.createdAt)}</span>
+        const compactCardHTML = `
+          <div onclick="openSignalDetail('${sig.id}')" class="border rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 cursor-pointer active:scale-[0.99] transition-all ${rowCls}">
+            <div class="flex flex-col min-w-0">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-xs font-bold ${stateCls}">${stateLabel}</span>
+                <span class="text-[10px] font-semibold ${fresh.cls}">· ${fresh.label}</span>
               </div>
-
-              <div class="flex items-center gap-3">
-                <div class="text-right">
-                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">Struct / Entry / Risk</span>
-                  <span class="text-lg font-extrabold text-emerald-400 font-mono">${sig.structuralScore}<span class="text-xs text-gray-500">/</span>${sig.entryScore}<span class="text-xs text-gray-500">/</span>${sig.riskScore}</span>
-                </div>
-                <div class="text-right pl-3 border-l border-gray-800">
-                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">Overall</span>
-                  <span class="text-xl font-extrabold text-white font-mono">${sig.score}<span class="text-xs text-gray-500">/100</span></span>
-                </div>
-                <div class="text-right pl-3 border-l border-gray-800">
-                  <span class="text-[10px] text-gray-500 uppercase tracking-wider block">24H Volume</span>
-                  <span class="text-sm font-semibold text-white font-mono">${formatCurrency(sig.quoteVolume)}</span>
-                </div>
-                <button onclick="openSignalDetail('${sig.id}')" class="ml-2 px-3 py-1.5 rounded-md bg-gray-800 hover:bg-gray-700 border border-gray-700 text-xs text-gray-300"><i class="fa-solid fa-list-ul"></i> Details</button>
+              <div class="flex items-center gap-1.5 mt-0.5">
+                <i class="fa-solid ${dirIcon} text-[11px]"></i>
+                <span class="text-sm font-bold text-white truncate">${sig.symbol}</span>
+                <span class="text-[11px] text-gray-400 font-semibold">${sig.direction}</span>
               </div>
+              <span class="text-[11px] text-gray-400 font-mono mt-0.5">${priceLine}</span>
             </div>
-
-            ${invalidationBanner}
-
-            <div class="bg-[#0B0E14] border border-blue-900/40 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <span class="text-[11px] text-blue-400 uppercase font-medium">Entry Zone</span>
-                <span class="text-sm font-bold font-mono text-blue-300 block mt-0.5">${formatNumber(sig.zone.zoneLow)} – ${formatNumber(sig.zone.zoneHigh)}</span>
-                <span class="text-[10px] text-gray-500">${sig.zone.quality === 'CONFLUENCE' ? 'FVG + OB Confluence' : sig.zone.quality.replace('_', ' ')}</span>
-              </div>
-              <div>
-                <span class="text-[11px] text-gray-400 uppercase font-medium">Ideal Entry</span>
-                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.entryPrice)}</span>
-              </div>
-              <div>
-                <span class="text-[11px] text-gray-400 uppercase font-medium">Current Price</span>
-                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.livePrice || sig.entryPrice)}</span>
-              </div>
-              <div>
-                <span class="text-[11px] text-gray-400 uppercase font-medium">Distance</span>
-                <span class="text-sm font-bold font-mono ${sig.entryDistancePct <= sig.maxDrift ? 'text-emerald-400' : 'text-rose-400'} block mt-0.5">${formatNumber(sig.entryDistancePct, 2)}%</span>
-                <span class="text-[10px] text-gray-500">Max drift: ${formatNumber(sig.maxDrift, 2)}%</span>
-              </div>
+            <div class="text-right shrink-0">
+              <span class="text-[9px] text-gray-500 uppercase block">Score</span>
+              <span class="text-base font-extrabold text-white font-mono">${sig.score}</span>
             </div>
-
-            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <div class="bg-[#0B0E14] border border-gray-800/80 rounded-xl p-3">
-                <span class="text-[11px] text-gray-500 uppercase font-medium">ENTRY PRICE</span>
-                <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.entryPrice)}</span>
-              </div>
-              <div class="bg-[#0B0E14] border border-rose-900/40 rounded-xl p-3">
-                <span class="text-[11px] text-rose-400 uppercase font-medium">STOP LOSS</span>
-                <span class="text-sm font-bold font-mono text-rose-400 block mt-0.5">${formatNumber(sig.stopLoss)}</span>
-              </div>
-              <div class="bg-[#0B0E14] border border-emerald-900/40 rounded-xl p-3">
-                <span class="text-[11px] text-emerald-400 uppercase font-medium">TARGET TP1</span>
-                <span class="text-sm font-bold font-mono text-emerald-400 block mt-0.5">${formatNumber(sig.tp1)}</span>
-              </div>
-              <div class="bg-[#0B0E14] border border-emerald-900/40 rounded-xl p-3">
-                <span class="text-[11px] text-emerald-400 uppercase font-medium">TARGET TP2</span>
-                <span class="text-sm font-bold font-mono text-emerald-400 block mt-0.5">${formatNumber(sig.tp2)}</span>
-              </div>
-              <div class="bg-[#0B0E14] border border-amber-900/40 rounded-xl p-3 col-span-2 md:col-span-1">
-                <span class="text-[11px] text-amber-400 uppercase font-medium">RISK : REWARD</span>
-                <span class="text-sm font-bold font-mono text-amber-400 block mt-0.5">1 : ${formatNumber(sig.rrRatio, 1)}</span>
-              </div>
-            </div>
-
-            ${rrWarning}
-
-            <div class="bg-[#0B0E14]/60 border border-gray-800/80 rounded-xl p-3 text-xs flex flex-wrap items-center justify-between gap-2">
-              <span class="text-gray-400 font-medium">Score Proof:</span>
-              <div class="flex flex-wrap items-center gap-2 text-[11px] font-mono">
-                <span class="text-emerald-400">4H Bias: +${sig.breakdown.score4H}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">1H Sweep: +${sig.breakdown.score1H}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">15M Sweep: +${sig.breakdown.scoreSweep}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">CHoCH: +${sig.breakdown.scoreChoch}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">Displacement: +${sig.breakdown.scoreDisplacement}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">Zone: +${sig.breakdown.scoreZone}</span><span class="text-gray-600">•</span>
-                <span class="text-emerald-400">TrendLines: ${scoreTLText}</span>
-              </div>
-            </div>
-
-            <div class="flex flex-col gap-3">
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-bold text-gray-400 uppercase">Interactive Chart:</span>
-                  <button id="tl-btn-${sig.symbol}" onclick="toggleTrendLines('${sig.symbol}')" class="px-3 py-1 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all ${showTrendLinesMap[sig.symbol] ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-gray-800 text-gray-400 border-gray-700'}">
-                    <i class="fa-solid fa-chart-line"></i><span>Show Trend Lines</span>
-                  </button>
-                </div>
-                <div class="flex items-center gap-2">
-                  <div class="inline-flex rounded-lg bg-gray-900 border border-gray-800 p-0.5" id="tf-toggle-${sig.symbol}">
-                    <button onclick="switchChartTF('${sig.symbol}', '4H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">4H</button>
-                    <button onclick="switchChartTF('${sig.symbol}', '1H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">1H</button>
-                    <button onclick="switchChartTF('${sig.symbol}', '15M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-emerald-400 bg-gray-800 font-bold transition-all">15M</button>
-                    <button onclick="switchChartTF('${sig.symbol}', '5M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">5M</button>
-                  </div>
-                  <div class="flex items-center gap-1 ml-2">
-                    <button onclick="zoomOut('${sig.symbol}')" title="Zoom Out" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
-                    <span class="text-xs font-mono text-gray-400 px-1 min-w-[38px] text-center" id="zoom-level-${sig.symbol}">${Math.round(zoomLevelMap[sig.symbol] * 100)}%</span>
-                    <button onclick="zoomIn('${sig.symbol}')" title="Zoom In" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
-                    <button onclick="resetZoom('${sig.symbol}')" title="Reset Zoom" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-arrows-left-right"></i></button>
-                  </div>
-                </div>
-              </div>
-
-              <div class="relative w-full h-[360px] bg-[#090C12] border border-gray-800/80 rounded-xl overflow-hidden">
-                <canvas id="canvas-${sig.symbol}" class="w-full h-full block"></canvas>
-              </div>
-
-              <div class="flex items-center justify-between px-3 py-1.5 bg-gray-900/60 border border-gray-800/60 rounded-md text-[10px] text-gray-400">
-                <div class="flex items-center gap-4">
-                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#26a69a]"></span> Bullish Candle</span>
-                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#ef5350]"></span> Bearish Candle</span>
-                  <span id="legend-range-${sig.symbol}">📊 Range: --</span>
-                </div>
-                <div id="legend-count-${sig.symbol}">🕒 Candles Visible: --</div>
-              </div>
-            </div>
-
-            <div class="bg-[#0B0E14] border border-gray-800/80 rounded-xl p-4 flex flex-col gap-2">
-              <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-circle-info"></i> Why This Trade?</span>
-              <p class="text-xs text-gray-300 leading-relaxed">${sig.setupReason}</p>
-              <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-gray-400 mt-1">${whyHTML}</ul>
-            </div>
-
           </div>
         `;
-        signalsList.insertAdjacentHTML('beforeend', cardHTML);
+        signalsList.insertAdjacentHTML('beforeend', compactCardHTML);
       });
-
-      setTimeout(() => { signals.forEach(sig => renderCanvasChart(sig.symbol, activeTFMap[sig.symbol] || '15M')); }, 50);
     }
 
-    // ============ SIGNAL DETAIL MODAL ============
+    // ============ SIGNAL DETAIL MODAL (full analysis — spec section 7, 47) ============
     function openSignalDetail(id) {
       const sig = signalRegistry.get(id);
       if (!sig) return;
       const modal = document.getElementById('detailModal');
       const content = document.getElementById('detailModalContent');
       const fresh = classifyFreshness(sig.createdAt);
+
+      const whyHTML = (sig.whyChecklist || []).map(w => `<li class="flex items-center gap-1.5"><i class="fa-solid fa-check text-emerald-400 text-[10px]"></i> ${w.label}</li>`).join('');
+      const invalidationBanner = sig.invalidation ? `
+        <div class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3 text-xs text-rose-300 mb-3">
+          <strong>SIGNAL ${sig.status}</strong><br/>
+          Reason: ${sig.invalidation.reason}<br/>
+          Time: ${new Date(sig.invalidation.time).toLocaleTimeString()} · Price at event: ${formatNumber(sig.invalidation.price)}<br/>
+          Original Score: ${sig.invalidation.originalScore} · Score at event: ${sig.invalidation.currentScore}
+        </div>` : '';
+      const rrWarning = sig.rrFeasibility && sig.rrFeasibility.conflict ? `
+        <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 text-[11px] text-amber-300 flex items-start gap-2 mb-3">
+          <i class="fa-solid fa-triangle-exclamation mt-0.5"></i> <span><strong>TARGET CONFLICT:</strong> ${sig.rrFeasibility.note}</span>
+        </div>` : '';
+      const scoreTLText = sig.breakdown.scoreTrendLines >= 0 ? `+${sig.breakdown.scoreTrendLines}` : `${sig.breakdown.scoreTrendLines}`;
+      const stateNow = sig.status === 'ACTIVE' ? sig.entryStatus : sig.status;
+
       content.innerHTML = `
-        <div class="flex items-center justify-between mb-4">
-          <h2 class="text-xl font-bold text-white">${sig.symbol} — ${sig.direction}</h2>
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="text-xl font-bold text-white">${sig.symbol} — ${sig.direction}</h2>
+            <span class="text-[10px] text-gray-500 font-mono">Signal ID: ${sig.id}</span>
+          </div>
           <button onclick="closeSignalDetail()" class="text-gray-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
         </div>
-        <div class="grid grid-cols-2 gap-4 text-xs">
+
+        ${invalidationBanner}
+        ${rrWarning}
+
+        <div class="bg-[#0B0E14] border border-blue-900/40 rounded-xl p-3 grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+          <div>
+            <span class="text-[11px] text-blue-400 uppercase font-medium">Entry Zone</span>
+            <span class="text-sm font-bold font-mono text-blue-300 block mt-0.5">${formatNumber(sig.zone.zoneLow)} – ${formatNumber(sig.zone.zoneHigh)}</span>
+            <span class="text-[10px] text-gray-500">${sig.zone.quality === 'CONFLUENCE' ? 'FVG + OB Confluence' : sig.zone.quality.replace('_', ' ')}</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-gray-400 uppercase font-medium">Ideal Entry</span>
+            <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.entryPrice)}</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-gray-400 uppercase font-medium">Current Price</span>
+            <span class="text-sm font-bold font-mono text-white block mt-0.5">${formatNumber(sig.livePrice || sig.entryPrice)}</span>
+          </div>
+          <div>
+            <span class="text-[11px] text-gray-400 uppercase font-medium">Distance</span>
+            <span class="text-sm font-bold font-mono ${sig.entryDistancePct <= sig.maxDrift ? 'text-emerald-400' : 'text-rose-400'} block mt-0.5">${formatNumber(sig.entryDistancePct, 2)}%</span>
+            <span class="text-[10px] text-gray-500">Max drift: ${formatNumber(sig.maxDrift, 2)}%</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 text-xs mb-3">
           <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
             <h4 class="text-gray-400 font-bold uppercase mb-2">Market</h4>
             <div class="space-y-1 text-gray-300">
-              <div>Symbol: <span class="font-mono">${sig.symbol}</span></div>
               <div>Current Price: <span class="font-mono">${formatNumber(sig.livePrice || sig.entryPrice)}</span></div>
               <div>24H Volume: <span class="font-mono">${formatCurrency(sig.quoteVolume)}</span></div>
-              <div>Direction: <span class="font-mono">${sig.direction}</span></div>
               <div>BTC Regime: <span class="font-mono">${marketRegime.btc4hBias || '—'} / ${marketRegime.altEnv || '—'}</span></div>
+              <div>Session: <span class="font-mono">${(window.lastSessionLabel || '—')}</span></div>
             </div>
           </div>
           <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
@@ -1799,51 +1744,88 @@
               <div>4H Bias: <span class="font-mono">${sig.direction4H}</span></div>
               <div>1H Liquidity Sweep + Reclaim: <span class="font-mono">✅</span></div>
               <div>15M Sweep: <span class="font-mono">✅ @ ${formatNumber(sig.levels.sweepLevel)}</span></div>
-              <div>15M CHoCH/BOS: <span class="font-mono">✅</span></div>
-              <div>15M Displacement: <span class="font-mono">✅</span></div>
-              <div>Entry Zone: <span class="font-mono">${formatNumber(sig.zone.zoneLow)}–${formatNumber(sig.zone.zoneHigh)} (${sig.zone.quality === 'CONFLUENCE' ? 'Confluence' : sig.zone.quality.replace('_', ' ')})</span></div>
-            </div>
-          </div>
-          <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
-            <h4 class="text-gray-400 font-bold uppercase mb-2">Entry Timing</h4>
-            <div class="space-y-1 text-gray-300">
-              <div>Status: <span class="font-mono">${sig.status === 'ACTIVE' ? sig.entryStatus : sig.status}</span></div>
-              <div>Price in Zone: <span class="font-mono">${sig.entryStatus === 'ENTER' ? '✅' : '❌'}</span></div>
-              <div>Distance from Ideal Entry: <span class="font-mono">${formatNumber(sig.entryDistancePct, 2)}%</span></div>
-              <div class="text-[10px] text-gray-500 mt-1">5M chart available below for optional visual/momentum context — not required for ENTER.</div>
+              <div>15M CHoCH/BOS + Displacement: <span class="font-mono">✅</span></div>
             </div>
           </div>
           <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
             <h4 class="text-gray-400 font-bold uppercase mb-2">Risk</h4>
             <div class="space-y-1 text-gray-300">
-              <div>Ideal Entry: <span class="font-mono">${formatNumber(sig.entryPrice)}</span></div>
-              <div>Current Price: <span class="font-mono">${formatNumber(sig.livePrice || sig.entryPrice)}</span></div>
-              <div>Distance: <span class="font-mono">${formatNumber(sig.entryDistancePct, 2)}% (max ${formatNumber(sig.maxDrift, 2)}%)</span></div>
               <div>Stop Loss: <span class="font-mono text-rose-400">${formatNumber(sig.stopLoss)}</span></div>
               <div>TP1: <span class="font-mono text-emerald-400">${formatNumber(sig.tp1)}</span></div>
               <div>TP2: <span class="font-mono text-emerald-400">${formatNumber(sig.tp2)}</span></div>
-              <div>R:R: <span class="font-mono">1:${formatNumber(sig.rrRatio, 1)}</span></div>
+              <div>R:R: <span class="font-mono">1:${formatNumber(sig.rrRatio, 1)}</span> <span class="text-[10px] text-gray-500">(informational, not a blocker)</span></div>
             </div>
           </div>
           <div class="bg-[#0B0E14] border border-gray-800 rounded-lg p-3">
             <h4 class="text-gray-400 font-bold uppercase mb-2">Quality</h4>
             <div class="space-y-1 text-gray-300">
-              <div>Structural Score: <span class="font-mono">${sig.structuralScore}/100</span></div>
-              <div>Entry Score: <span class="font-mono">${sig.entryScore}/100</span></div>
-              <div>Risk Score: <span class="font-mono">${sig.riskScore}/100</span></div>
-              <div>Overall Score: <span class="font-mono">${sig.score}/100</span></div>
-              <div>Grade: <span class="font-mono">${gradeOf(sig.score)}</span></div>
+              <div>Structural / Entry / Risk: <span class="font-mono">${sig.structuralScore} / ${sig.entryScore} / ${sig.riskScore}</span></div>
+              <div>Overall Score: <span class="font-mono">${sig.score}/100</span> (Grade ${gradeOf(sig.score)})</div>
+              <div>Status: <span class="font-mono">${stateNow.toString().replace('_',' ')}</span></div>
               <div>Freshness: <span class="font-mono">${fresh.label} (${timeAgo(sig.createdAt)})</span></div>
             </div>
           </div>
         </div>
-        <div class="mt-4 bg-[#0B0E14] border border-gray-800 rounded-lg p-3 text-xs">
-          <h4 class="text-gray-400 font-bold uppercase mb-2">Status</h4>
-          <div class="text-gray-300">${sig.status === 'ACTIVE' ? sig.entryStatus.replace('_', ' ') : sig.status}</div>
-          ${sig.invalidation ? `<div class="mt-1 text-rose-300">${sig.invalidation.reason}</div>` : ''}
+
+        <div class="bg-[#0B0E14]/60 border border-gray-800/80 rounded-xl p-3 text-xs flex flex-wrap items-center justify-between gap-2 mb-3">
+          <span class="text-gray-400 font-medium">Score Proof:</span>
+          <div class="flex flex-wrap items-center gap-2 text-[11px] font-mono">
+            <span class="text-emerald-400">4H: +${sig.breakdown.score4H}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">1H: +${sig.breakdown.score1H}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">Sweep: +${sig.breakdown.scoreSweep}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">CHoCH: +${sig.breakdown.scoreChoch}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">Displacement: +${sig.breakdown.scoreDisplacement}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">Zone: +${sig.breakdown.scoreZone}</span><span class="text-gray-600">•</span>
+            <span class="text-emerald-400">TrendLines: ${scoreTLText}</span>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3 mb-3">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <span class="text-xs font-bold text-gray-400 uppercase">Interactive Chart:</span>
+              <button id="tl-btn-${sig.symbol}" onclick="toggleTrendLines('${sig.symbol}')" class="px-3 py-1 rounded-md border text-xs font-semibold flex items-center gap-1.5 transition-all ${showTrendLinesMap[sig.symbol] ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-gray-800 text-gray-400 border-gray-700'}">
+                <i class="fa-solid fa-chart-line"></i><span>Show Trend Lines</span>
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="inline-flex rounded-lg bg-gray-900 border border-gray-800 p-0.5" id="tf-toggle-${sig.symbol}">
+                <button onclick="switchChartTF('${sig.symbol}', '4H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">4H</button>
+                <button onclick="switchChartTF('${sig.symbol}', '1H')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">1H</button>
+                <button onclick="switchChartTF('${sig.symbol}', '15M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-emerald-400 bg-gray-800 font-bold transition-all">15M</button>
+                <button onclick="switchChartTF('${sig.symbol}', '5M')" class="px-2.5 py-1 rounded-md text-xs font-medium text-gray-400 hover:text-white transition-all">5M</button>
+              </div>
+              <div class="flex items-center gap-1 ml-2">
+                <button onclick="zoomOut('${sig.symbol}')" title="Zoom Out" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
+                <span class="text-xs font-mono text-gray-400 px-1 min-w-[38px] text-center" id="zoom-level-${sig.symbol}">${Math.round(zoomLevelMap[sig.symbol] * 100)}%</span>
+                <button onclick="zoomIn('${sig.symbol}')" title="Zoom In" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                <button onclick="resetZoom('${sig.symbol}')" title="Reset Zoom" class="px-2 py-1 bg-gray-800 rounded text-xs hover:bg-gray-700 text-gray-300 border border-gray-700"><i class="fa-solid fa-arrows-left-right"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="relative w-full h-[300px] bg-[#090C12] border border-gray-800/80 rounded-xl overflow-hidden">
+            <canvas id="canvas-${sig.symbol}" class="w-full h-full block"></canvas>
+          </div>
+
+          <div class="flex items-center justify-between px-3 py-1.5 bg-gray-900/60 border border-gray-800/60 rounded-md text-[10px] text-gray-400">
+            <div class="flex items-center gap-4">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#26a69a]"></span> Bullish</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-[#ef5350]"></span> Bearish</span>
+              <span id="legend-range-${sig.symbol}">📊 Range: --</span>
+            </div>
+            <div id="legend-count-${sig.symbol}">🕒 Candles Visible: --</div>
+          </div>
+        </div>
+
+        <div class="bg-[#0B0E14] border border-gray-800/80 rounded-xl p-4 flex flex-col gap-2">
+          <span class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5"><i class="fa-solid fa-circle-info"></i> Why ${stateNow === 'ENTER' ? 'This Trade' : stateNow === 'WAIT' ? 'Wait' : 'This Status'}?</span>
+          <p class="text-xs text-gray-300 leading-relaxed">${sig.setupReason}</p>
+          <ul class="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-gray-400 mt-1">${whyHTML}</ul>
         </div>
       `;
       modal.classList.remove('hidden');
+      setTimeout(() => renderCanvasChart(sig.symbol, activeTFMap[sig.symbol] || '15M'), 50);
     }
     function closeSignalDetail() { document.getElementById('detailModal').classList.add('hidden'); }
 
@@ -2227,6 +2209,26 @@
     }
     restoreAlertStateOnLoad();
 
+    // ============ INSTALL AS APP (PWA) ============
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+      if (!isStandalone) document.getElementById('installBanner').classList.remove('hidden');
+    });
+    window.addEventListener('appinstalled', () => {
+      document.getElementById('installBanner').classList.add('hidden');
+      deferredInstallPrompt = null;
+    });
+    async function installApp() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      document.getElementById('installBanner').classList.add('hidden');
+    }
+
     // ============ BACKGROUND ENGINE INSIGHTS (regime / session / adaptive / funnel) ============
     // Polls the same backend that gates Android push notifications, so this
     // panel and the notifications are always describing the same reality.
@@ -2245,7 +2247,7 @@
         const data = await res.json();
 
         const sessionBadge = document.getElementById('sessionBadge');
-        if (data.session) sessionBadge.textContent = `${data.session.label} · EAT ${data.session.eat}`;
+        if (data.session) { sessionBadge.textContent = `${data.session.label} · EAT ${data.session.eat}`; window.lastSessionLabel = data.session.label; }
 
         const regimeLabelEl = document.getElementById('altRegimeLabel');
         const regimeDetailEl = document.getElementById('altRegimeDetail');
